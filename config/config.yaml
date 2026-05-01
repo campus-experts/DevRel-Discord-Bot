@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# config/config.yaml
+#
+# Non-secret configuration for the DevRel Discord Bot.
+# Secrets (DISCORD_TOKEN, YOUTUBE_API_KEY) live in .env (or host env vars).
+#
+# How to fill this in
+# ───────────────────
+# 1. discord_channel_id  – Right-click a channel in Discord (Developer Mode
+#    must be on: Settings > Advanced > Developer Mode) and choose
+#    "Copy Channel ID".
+# 2. youtube.channel_id  – The ID of the YouTube channel to watch.
+#    GitHub's channel ID is: UC7c3Kb6jYCRj4JOHHZTxKsA
+# ─────────────────────────────────────────────────────────────────────────────
+
+youtube:
+  # YouTube channel to watch for new uploads
+  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"          # GitHub's YouTube channel
+
+  # Discord channel where new video announcements are posted
+  # Replace with your actual channel ID (integer)
+  discord_channel_id: 123456789012345678
+
+  # How often (in minutes) to poll the YouTube API for new videos
+  check_interval_minutes: 30
+
+  # Maximum number of recent videos to retrieve per poll
+  # (only new ones since the last check are announced)
+  max_results: 5
+
+blog:
+  # RSS feed URL for the GitHub Blog
+  feed_url: "https://github.blog/feed/"
+
+  # Discord channel where new blog post announcements are posted
+  # Replace with your actual channel ID (integer)
+  discord_channel_id: 123456789012345679
+
+  # How often (in minutes) to poll the blog RSS feed
+  check_interval_minutes: 60
+
+  # Maximum number of recent posts to retrieve per poll
+  max_results: 5
