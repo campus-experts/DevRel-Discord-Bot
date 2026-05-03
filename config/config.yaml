@@ -17,27 +17,43 @@ youtube:
   # YouTube channel to watch for new uploads
   channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"          # GitHub's YouTube channel
 
-  # Discord channel where new video announcements are posted
+  # Discord channel where the weekly digest is posted
   # Replace with your actual channel ID (integer)
   discord_channel_id: 123456789012345678
 
-  # How often (in minutes) to poll the YouTube API for new videos
-  check_interval_minutes: 30
+  # Weekly digest schedule
+  # digest_day  – day of week to post the digest (case-insensitive)
+  # digest_hour – hour in UTC to post (24-hour clock; 20 = 8 PM UTC, "Thursday night")
+  digest_day: "thursday"
+  digest_hour: 20
 
-  # Maximum number of recent videos to retrieve per poll
-  # (only new ones since the last check are announced)
-  max_results: 5
+  # Keyword used to filter videos (case-insensitive search of title + description)
+  keyword: "Copilot"
+
+  # Number of top videos to include in the digest
+  digest_count: 3
+
+  # Candidate pool size: how many recent keyword-matching videos to fetch before
+  # ranking by view count and picking the top digest_count
+  search_pool: 20
 
 blog:
   # RSS feed URL for the GitHub Blog
   feed_url: "https://github.blog/feed/"
 
-  # Discord channel where new blog post announcements are posted
+  # Discord channel where the weekly digest is posted
   # Replace with your actual channel ID (integer)
   discord_channel_id: 123456789012345679
 
-  # How often (in minutes) to poll the blog RSS feed
-  check_interval_minutes: 60
+  # Weekly digest schedule (same settings as youtube above)
+  digest_day: "thursday"
+  digest_hour: 20
 
-  # Maximum number of recent posts to retrieve per poll
-  max_results: 5
+  # Keyword used to filter blog posts (case-insensitive search of title + summary)
+  keyword: "Copilot"
+
+  # Number of posts to include in the digest
+  digest_count: 3
+
+  # Candidate pool size: how many feed entries to inspect before stopping
+  search_pool: 20

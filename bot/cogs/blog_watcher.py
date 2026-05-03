@@ -1,29 +1,34 @@
 """
-bot/cogs/blog_watcher.py – Discord cog that watches the GitHub Blog RSS feed.
+bot/cogs/blog_watcher.py – Discord cog that posts a weekly Copilot blog digest.
 
 How it works
 ────────────
-1. On startup the cog loads the last-seen post ID from ``data/state.json``
-   (created automatically; ignored by .gitignore).
-2. A background ``discord.ext.tasks`` loop polls the GitHub Blog RSS feed
-   every ``check_interval_minutes`` minutes (configured in config.yaml).
-3. Any post whose ID hasn't been seen before is posted to the configured
-   Discord channel as a rich embed that includes:
-     - Post title (linked to the blog article)
-     - Plain-text summary (HTML stripped, ≤500 characters)
-     - Publish date
-4. The newest post ID is saved to state.json so the bot does not
-   re-announce the same post after a restart.
+1. A background ``discord.ext.tasks`` loop fires every hour.
+2. Inside the loop the cog checks whether the current UTC day and hour match
+   the configured ``digest_day`` / ``digest_hour`` (default: Thursday 20:00 UTC).
+3. If it is the right time and a digest hasn't already been sent today, the cog:
+     a. Parses the GitHub Blog RSS feed.
+     b. Filters entries published in the past 7 days whose title, summary, or
+        body contains ``keyword`` (default: "Copilot").
+     c. Takes up to ``digest_count`` matching posts (newest first — RSS feeds
+        do not carry view-count data).
+     d. Posts a single rich embed digest to the configured Discord channel.
+4. The date of the last digest is persisted to ``data/state.json`` so the bot
+   does not re-post if it restarts on the same day.
 
 config.yaml keys used (under ``blog:``)
 ────────────────────────────────────────
-  feed_url                – RSS/Atom feed URL (default: https://github.blog/feed/)
-  discord_channel_id      – Discord channel ID to post announcements in
-  check_interval_minutes  – Poll interval (default: 60)
-  max_results             – Posts per feed parse (default: 5)
+  feed_url           – RSS/Atom feed URL (default: https://github.blog/feed/)
+  discord_channel_id – Discord channel ID to post the digest in
+  digest_day         – Day of week for the digest (default: "thursday")
+  digest_hour        – UTC hour for the digest (default: 20)
+  keyword            – Keyword filter for post search (default: "Copilot")
+  digest_count       – Number of posts in the digest (default: 3)
+  search_pool        – Feed entries to inspect before stopping (default: 20)
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord.ext import commands, tasks
@@ -33,54 +38,70 @@ from utils.state import load_state, save_state
 
 logger = logging.getLogger(__name__)
 
+# Day names (lowercase) mapped to Python weekday integers (Monday=0).
+_WEEKDAY_MAP = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+
 
 class BlogWatcher(commands.Cog):
-    """Background task that announces new GitHub Blog posts."""
+    """Background task that posts a weekly Copilot blog digest."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         cfg = bot.config["blog"]
 
         self.discord_channel_id: int = int(cfg["discord_channel_id"])
-        self.max_results: int = cfg.get("max_results", 5)
-        interval: int = cfg.get("check_interval_minutes", 60)
+        self.keyword: str = cfg.get("keyword", "Copilot")
+        self.digest_count: int = int(cfg.get("digest_count", 3))
+        self.search_pool: int = int(cfg.get("search_pool", 20))
+        self.digest_hour: int = int(cfg.get("digest_hour", 20))
+        digest_day_str: str = cfg.get("digest_day", "thursday").lower()
+        self.digest_weekday: int = _WEEKDAY_MAP.get(digest_day_str, 3)  # default Thursday
 
         self.blog_client = BlogFetcher(feed_url=cfg["feed_url"])
         self.state: dict = load_state()
 
-        self.check_blog.change_interval(minutes=interval)
-        self.check_blog.start()
+        self.weekly_digest.start()
 
     def cog_unload(self) -> None:
         """Clean up the background task when the cog is unloaded."""
-        self.check_blog.cancel()
+        self.weekly_digest.cancel()
 
     # ------------------------------------------------------------------
-    # Background task
+    # Background task – fires every hour, acts only on the digest day/hour
     # ------------------------------------------------------------------
 
-    @tasks.loop(minutes=60)  # default; overridden in __init__ via change_interval
-    async def check_blog(self) -> None:
-        """Poll the GitHub Blog feed and post announcements for new entries."""
-        logger.info("Polling GitHub Blog feed: %s", self.blog_client.feed_url)
+    @tasks.loop(hours=1)
+    async def weekly_digest(self) -> None:
+        """Post the weekly Copilot blog digest if it is the right time."""
+        now = datetime.now(tz=timezone.utc)
 
-        posts = self.blog_client.get_recent_posts(max_results=self.max_results)
-        if not posts:
-            logger.debug("Blog: no posts returned from feed.")
+        if now.weekday() != self.digest_weekday:
+            return
+        if now.hour != self.digest_hour:
             return
 
-        last_seen_id = self.state.get("blog_last_seen_id")
-
-        # Collect posts that are newer than the last-seen one.
-        new_posts = []
-        for post in posts:
-            if post["id"] == last_seen_id:
-                break
-            new_posts.append(post)
-
-        if not new_posts:
-            logger.debug("Blog: no new posts since last check.")
+        # Avoid double-posting if the bot restarts within the same digest hour.
+        today_str = now.strftime("%Y-%m-%d")
+        if self.state.get("blog_last_digest_date") == today_str:
+            logger.debug("Blog digest already sent for %s, skipping.", today_str)
             return
+
+        logger.info(
+            "Running weekly blog digest (keyword=%s, date=%s)",
+            self.keyword,
+            today_str,
+        )
+
+        since = now - timedelta(days=7)
+        posts = self.blog_client.get_posts_since_by_keyword(
+            since=since,
+            keyword=self.keyword,
+            max_results=self.digest_count,
+            search_pool=self.search_pool,
+        )
 
         channel = self.bot.get_channel(self.discord_channel_id)
         if channel is None:
@@ -90,19 +111,28 @@ class BlogWatcher(commands.Cog):
             )
             return
 
-        # Post oldest-first so the channel reads chronologically.
-        for post in reversed(new_posts):
-            embed = _build_embed(post)
+        if not posts:
+            logger.info(
+                "No '%s' blog posts found in the past week.",
+                self.keyword,
+            )
+            await channel.send(
+                f"📝 No **{self.keyword}** posts were published on the "
+                f"GitHub Blog this week."
+            )
+        else:
+            embed = _build_digest_embed(posts, self.keyword, since, now)
             await channel.send(embed=embed)
-            logger.info("Announced blog post: %s", post["title"])
+            logger.info(
+                "Posted blog weekly digest: %d post(s).", len(posts)
+            )
 
-        # Persist the most-recent post ID.
-        self.state["blog_last_seen_id"] = posts[0]["id"]
+        self.state["blog_last_digest_date"] = today_str
         save_state(self.state)
 
-    @check_blog.before_loop
-    async def before_check_blog(self) -> None:
-        """Wait until the bot is fully connected before the first poll."""
+    @weekly_digest.before_loop
+    async def before_weekly_digest(self) -> None:
+        """Wait until the bot is fully connected before the first check."""
         await self.bot.wait_until_ready()
 
 
@@ -110,12 +140,20 @@ class BlogWatcher(commands.Cog):
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _build_embed(post: dict) -> discord.Embed:
-    """Construct a Discord :class:`discord.Embed` for a blog post."""
+def _build_digest_embed(
+    posts: list,
+    keyword: str,
+    since: datetime,
+    now: datetime,
+) -> discord.Embed:
+    """Construct a Discord :class:`discord.Embed` for the weekly blog digest."""
+    date_range = f"{since.strftime('%b %d')} – {now.strftime('%b %d, %Y')}"
     embed = discord.Embed(
-        title=post["title"],
-        url=post["url"],
-        description=post["summary"] or "*No summary available.*",
+        title=f"📝 GitHub {keyword} — Weekly Blog Digest",
+        description=(
+            f"Recent GitHub Blog posts about **{keyword}** "
+            f"from the past week ({date_range})."
+        ),
         color=discord.Color.green(),
     )
     embed.set_author(
@@ -123,9 +161,24 @@ def _build_embed(post: dict) -> discord.Embed:
         url="https://github.blog",
         icon_url="https://github.githubassets.com/favicons/favicon.png",
     )
-    if post.get("published"):
-        embed.add_field(name="Published", value=post["published"], inline=True)
-    embed.set_footer(text="GitHub Blog • New post!")
+
+    medals = ["🥇", "🥈", "🥉"]
+    for i, post in enumerate(posts):
+        medal = medals[i] if i < len(medals) else f"#{i + 1}"
+        pub = post.get("published", "")
+        pub_line = f"Published: {pub}\n" if pub else ""
+        field_value = (
+            f"[📖 Read on GitHub Blog]({post['url']})\n"
+            f"{pub_line}"
+            f"{post['summary'][:200] or '*No summary.*'}"
+        )
+        embed.add_field(
+            name=f"{medal} {post['title']}",
+            value=field_value,
+            inline=False,
+        )
+
+    embed.set_footer(text="GitHub Blog • Weekly Digest")
     return embed
 
 

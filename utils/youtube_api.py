@@ -13,16 +13,26 @@ Prerequisites
 
 Usage example
 ─────────────
+    from datetime import datetime, timezone, timedelta
     from utils.youtube_api import YouTubeClient
 
     client = YouTubeClient(api_key="YOUR_KEY")
-    videos  = client.get_recent_videos("UC7c3Kb6jYCRj4JOHHZTxKsA", max_results=5)
+
+    # Weekly digest: top 3 Copilot videos from the past 7 days
+    since  = datetime.now(tz=timezone.utc) - timedelta(days=7)
+    videos = client.get_top_videos_by_keyword(
+        channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
+        keyword="Copilot",
+        published_after=since,
+        top_n=3,
+    )
     for v in videos:
-        print(v["title"], v["url"])
+        print(v["title"], v["view_count"], v["url"])
 """
 
 import logging
-from typing import List
+from datetime import datetime
+from typing import Dict, List
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -47,37 +57,54 @@ class YouTubeClient:
             cache_discovery=False,
         )
 
-    def get_recent_videos(
-        self, channel_id: str, max_results: int = 5
+    # ------------------------------------------------------------------
+    # Public methods
+    # ------------------------------------------------------------------
+
+    def search_by_keyword(
+        self,
+        channel_id: str,
+        keyword: str,
+        published_after: datetime,
+        max_results: int = 20,
     ) -> List[dict]:
-        """Return a list of the most recent videos from *channel_id*.
+        """Search *channel_id* for videos matching *keyword* published after *published_after*.
 
         Each returned dict contains:
 
-        - ``id``          – YouTube video ID  (e.g. ``"dQw4w9WgXcQ"``)
+        - ``id``          – YouTube video ID
         - ``title``       – Video title
         - ``description`` – First 500 characters of the video description
         - ``url``         – Full ``https://www.youtube.com/watch?v=…`` URL
         - ``published``   – ISO 8601 publish timestamp (string)
         - ``thumbnail``   – URL of the high-quality thumbnail image
+        - ``view_count``  – 0 (placeholder; populate with :meth:`get_video_statistics`)
 
-        Returns an empty list when the API call fails so callers can handle
-        the absence of results gracefully.
+        Returns an empty list when the API call fails.
         """
+        # RFC 3339 format required by the YouTube Data API.
+        published_after_str = published_after.strftime("%Y-%m-%dT%H:%M:%SZ")
         try:
             response = (
                 self._service.search()
                 .list(
                     part="snippet",
                     channelId=channel_id,
+                    q=keyword,
                     order="date",
                     type="video",
+                    publishedAfter=published_after_str,
                     maxResults=max_results,
                 )
                 .execute()
             )
         except HttpError as exc:
-            logger.error("YouTube API error (channel=%s): %s", channel_id, exc)
+            logger.error(
+                "YouTube API search error (channel=%s, keyword=%s): %s",
+                channel_id,
+                keyword,
+                exc,
+            )
             return []
 
         videos: List[dict] = []
@@ -96,6 +123,68 @@ class YouTubeClient:
                         .get("high", {})
                         .get("url", "")
                     ),
+                    "view_count": 0,
                 }
             )
         return videos
+
+    def get_video_statistics(self, video_ids: List[str]) -> Dict[str, int]:
+        """Return a ``{video_id: view_count}`` mapping for the given IDs.
+
+        Uses a single ``videos.list`` call (cheap: 1 quota unit) to batch
+        fetch statistics for all supplied IDs at once.
+
+        Returns an empty dict when the API call fails.
+        """
+        if not video_ids:
+            return {}
+        try:
+            response = (
+                self._service.videos()
+                .list(
+                    part="statistics",
+                    id=",".join(video_ids),
+                )
+                .execute()
+            )
+        except HttpError as exc:
+            logger.error("YouTube API statistics error: %s", exc)
+            return {}
+
+        stats: Dict[str, int] = {}
+        for item in response.get("items", []):
+            vid_id = item["id"]
+            raw = item.get("statistics", {}).get("viewCount", "0")
+            stats[vid_id] = int(raw)
+        return stats
+
+    def get_top_videos_by_keyword(
+        self,
+        channel_id: str,
+        keyword: str,
+        published_after: datetime,
+        top_n: int = 3,
+        search_pool: int = 20,
+    ) -> List[dict]:
+        """Return the top *top_n* videos matching *keyword* ranked by view count.
+
+        1. Searches *channel_id* for videos matching *keyword* published in the
+           past week (up to *search_pool* candidates).
+        2. Fetches view counts for all candidates in a single batch call.
+        3. Sorts by view count descending and returns the top *top_n*.
+
+        Each returned dict contains the same fields as :meth:`search_by_keyword`
+        plus a populated ``view_count`` integer.
+        """
+        videos = self.search_by_keyword(
+            channel_id, keyword, published_after, max_results=search_pool
+        )
+        if not videos:
+            return []
+
+        stats = self.get_video_statistics([v["id"] for v in videos])
+        for video in videos:
+            video["view_count"] = stats.get(video["id"], 0)
+
+        videos.sort(key=lambda v: v["view_count"], reverse=True)
+        return videos[:top_n]

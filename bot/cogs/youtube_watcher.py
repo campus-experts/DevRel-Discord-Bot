@@ -1,20 +1,19 @@
 """
-bot/cogs/youtube_watcher.py – Discord cog that watches the GitHub YouTube channel.
+bot/cogs/youtube_watcher.py – Discord cog that posts a weekly Copilot YouTube digest.
 
 How it works
 ────────────
-1. On startup the cog loads the last-seen video ID from ``data/state.json``
-   (created automatically; ignored by .gitignore).
-2. A background ``discord.ext.tasks`` loop polls the YouTube Data API v3
-   every ``check_interval_minutes`` minutes (configured in config.yaml).
-3. Any video whose ID hasn't been seen before is posted to the configured
-   Discord channel as a rich embed that includes:
-     - Video title (linked to YouTube)
-     - First 500 characters of the video description
-     - Publish date
-     - High-quality thumbnail
-4. The newest video ID is saved to state.json so the bot does not
-   re-announce the same video after a restart.
+1. A background ``discord.ext.tasks`` loop fires every hour.
+2. Inside the loop the cog checks whether the current UTC day and hour match
+   the configured ``digest_day`` / ``digest_hour`` (default: Thursday 20:00 UTC).
+3. If it is the right time and a digest hasn't already been sent today, the cog:
+     a. Searches the GitHub YouTube channel for videos matching ``keyword``
+        published in the past 7 days (up to ``search_pool`` candidates).
+     b. Fetches view counts for all candidates in a single API call.
+     c. Sorts by view count and picks the top ``digest_count`` videos.
+     d. Posts a single rich embed digest to the configured Discord channel.
+4. The date of the last digest is persisted to ``data/state.json`` so the bot
+   does not re-post if it restarts on the same day.
 
 Environment variables required
 ───────────────────────────────
@@ -22,14 +21,18 @@ Environment variables required
 
 config.yaml keys used (under ``youtube:``)
 ───────────────────────────────────────────
-  channel_id              – YouTube channel ID to watch
-  discord_channel_id      – Discord channel ID to post announcements in
-  check_interval_minutes  – Poll interval (default: 30)
-  max_results             – Videos per API call (default: 5)
+  channel_id         – YouTube channel ID to watch
+  discord_channel_id – Discord channel ID to post the digest in
+  digest_day         – Day of week for the digest (default: "thursday")
+  digest_hour        – UTC hour for the digest (default: 20)
+  keyword            – Keyword filter for video search (default: "Copilot")
+  digest_count       – Number of videos in the digest (default: 3)
+  search_pool        – Candidate pool size before view-count ranking (default: 20)
 """
 
 import logging
 import os
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord.ext import commands, tasks
@@ -39,9 +42,15 @@ from utils.youtube_api import YouTubeClient
 
 logger = logging.getLogger(__name__)
 
+# Day names (lowercase) mapped to Python weekday integers (Monday=0).
+_WEEKDAY_MAP = {
+    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+    "friday": 4, "saturday": 5, "sunday": 6,
+}
+
 
 class YouTubeWatcher(commands.Cog):
-    """Background task that announces new GitHub YouTube videos."""
+    """Background task that posts a weekly Copilot YouTube digest."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -49,52 +58,57 @@ class YouTubeWatcher(commands.Cog):
 
         self.yt_channel_id: str = cfg["channel_id"]
         self.discord_channel_id: int = int(cfg["discord_channel_id"])
-        self.max_results: int = cfg.get("max_results", 5)
-        interval: int = cfg.get("check_interval_minutes", 30)
+        self.keyword: str = cfg.get("keyword", "Copilot")
+        self.digest_count: int = int(cfg.get("digest_count", 3))
+        self.search_pool: int = int(cfg.get("search_pool", 20))
+        self.digest_hour: int = int(cfg.get("digest_hour", 20))
+        digest_day_str: str = cfg.get("digest_day", "thursday").lower()
+        self.digest_weekday: int = _WEEKDAY_MAP.get(digest_day_str, 3)  # default Thursday
 
         api_key = os.environ["YOUTUBE_API_KEY"]
         self.yt_client = YouTubeClient(api_key=api_key)
-
         self.state: dict = load_state()
 
-        # Adjust the loop interval before starting it.
-        self.check_youtube.change_interval(minutes=interval)
-        self.check_youtube.start()
+        self.weekly_digest.start()
 
     def cog_unload(self) -> None:
         """Clean up the background task when the cog is unloaded."""
-        self.check_youtube.cancel()
+        self.weekly_digest.cancel()
 
     # ------------------------------------------------------------------
-    # Background task
+    # Background task – fires every hour, acts only on the digest day/hour
     # ------------------------------------------------------------------
 
-    @tasks.loop(minutes=30)  # default; overridden in __init__ via change_interval
-    async def check_youtube(self) -> None:
-        """Poll YouTube for new videos and post announcements."""
-        logger.info("Polling YouTube channel: %s", self.yt_channel_id)
+    @tasks.loop(hours=1)
+    async def weekly_digest(self) -> None:
+        """Post the weekly Copilot YouTube digest if it is the right time."""
+        now = datetime.now(tz=timezone.utc)
 
-        videos = self.yt_client.get_recent_videos(
-            self.yt_channel_id, max_results=self.max_results
+        if now.weekday() != self.digest_weekday:
+            return
+        if now.hour != self.digest_hour:
+            return
+
+        # Avoid double-posting if the bot restarts within the same digest hour.
+        today_str = now.strftime("%Y-%m-%d")
+        if self.state.get("youtube_last_digest_date") == today_str:
+            logger.debug("YouTube digest already sent for %s, skipping.", today_str)
+            return
+
+        logger.info(
+            "Running weekly YouTube digest (keyword=%s, date=%s)",
+            self.keyword,
+            today_str,
         )
-        if not videos:
-            logger.debug("YouTube: no videos returned from API.")
-            return
 
-        last_seen_id = self.state.get("youtube_last_seen_id")
-
-        # Collect videos that are newer than the last-seen one.
-        # The API returns results newest-first, so we stop at the first
-        # already-seen video.
-        new_videos = []
-        for video in videos:
-            if video["id"] == last_seen_id:
-                break
-            new_videos.append(video)
-
-        if not new_videos:
-            logger.debug("YouTube: no new videos since last check.")
-            return
+        since = now - timedelta(days=7)
+        videos = self.yt_client.get_top_videos_by_keyword(
+            channel_id=self.yt_channel_id,
+            keyword=self.keyword,
+            published_after=since,
+            top_n=self.digest_count,
+            search_pool=self.search_pool,
+        )
 
         channel = self.bot.get_channel(self.discord_channel_id)
         if channel is None:
@@ -104,19 +118,28 @@ class YouTubeWatcher(commands.Cog):
             )
             return
 
-        # Post oldest-first so the channel reads chronologically.
-        for video in reversed(new_videos):
-            embed = _build_embed(video)
+        if not videos:
+            logger.info(
+                "No '%s' videos found on GitHub YouTube in the past week.",
+                self.keyword,
+            )
+            await channel.send(
+                f"📺 No **{self.keyword}** videos were published on the "
+                f"GitHub YouTube channel this week."
+            )
+        else:
+            embed = _build_digest_embed(videos, self.keyword, since, now)
             await channel.send(embed=embed)
-            logger.info("Announced YouTube video: %s", video["title"])
+            logger.info(
+                "Posted YouTube weekly digest: %d video(s).", len(videos)
+            )
 
-        # Persist the most-recent video ID.
-        self.state["youtube_last_seen_id"] = videos[0]["id"]
+        self.state["youtube_last_digest_date"] = today_str
         save_state(self.state)
 
-    @check_youtube.before_loop
-    async def before_check_youtube(self) -> None:
-        """Wait until the bot is fully connected before the first poll."""
+    @weekly_digest.before_loop
+    async def before_weekly_digest(self) -> None:
+        """Wait until the bot is fully connected before the first check."""
         await self.bot.wait_until_ready()
 
 
@@ -124,12 +147,31 @@ class YouTubeWatcher(commands.Cog):
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _build_embed(video: dict) -> discord.Embed:
-    """Construct a Discord :class:`discord.Embed` for a YouTube video."""
+def _fmt_views(count: int) -> str:
+    """Return a human-friendly view-count string (e.g. ``"1.2M views"``)."""
+    if count >= 1_000_000:
+        return f"{count / 1_000_000:.1f}M views"
+    if count >= 1_000:
+        return f"{count / 1_000:.1f}K views"
+    return f"{count:,} views"
+
+
+def _build_digest_embed(
+    videos: list,
+    keyword: str,
+    since: datetime,
+    now: datetime,
+) -> discord.Embed:
+    """Construct a Discord :class:`discord.Embed` for the weekly video digest."""
+    date_range = (
+        f"{since.strftime('%b %d')} – {now.strftime('%b %d, %Y')}"
+    )
     embed = discord.Embed(
-        title=video["title"],
-        url=video["url"],
-        description=video["description"] or "*No description available.*",
+        title=f"📺 GitHub {keyword} — Weekly Video Digest",
+        description=(
+            f"Top GitHub YouTube videos about **{keyword}** "
+            f"from the past week ({date_range}), ranked by views."
+        ),
         color=discord.Color.red(),
     )
     embed.set_author(
@@ -137,11 +179,25 @@ def _build_embed(video: dict) -> discord.Embed:
         url="https://www.youtube.com/@GitHub",
         icon_url="https://www.youtube.com/favicon.ico",
     )
-    if video.get("thumbnail"):
-        embed.set_image(url=video["thumbnail"])
-    if video.get("published"):
-        embed.add_field(name="Published", value=video["published"], inline=True)
-    embed.set_footer(text="GitHub YouTube Channel • New video!")
+
+    medals = ["🥇", "🥈", "🥉"]
+    for i, video in enumerate(videos):
+        medal = medals[i] if i < len(medals) else f"#{i + 1}"
+        views_str = _fmt_views(video.get("view_count", 0))
+        field_value = (
+            f"[▶ Watch on YouTube]({video['url']}) • {views_str}\n"
+            f"{video['description'][:200] or '*No description.*'}"
+        )
+        embed.add_field(
+            name=f"{medal} {video['title']}",
+            value=field_value,
+            inline=False,
+        )
+        # Use the thumbnail from the most-viewed video.
+        if i == 0 and video.get("thumbnail"):
+            embed.set_image(url=video["thumbnail"])
+
+    embed.set_footer(text="GitHub YouTube Channel • Weekly Digest")
     return embed
 
 
