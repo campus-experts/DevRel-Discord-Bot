@@ -18,11 +18,13 @@ Usage example
 
     client = YouTubeClient(api_key="YOUR_KEY")
 
-    # Weekly digest: top 3 Copilot videos from the past 7 days
-    since  = datetime.now(tz=timezone.utc) - timedelta(days=7)
-    videos = client.get_top_videos_by_keyword(
+    # Weekly digest: top 3 videos from the past 7 days matching any keyword
+    since    = datetime.now(tz=timezone.utc) - timedelta(days=7)
+    keywords = ["GitHub Copilot", "GitHub Copilot CLI", "Security",
+                "Developer Skills", "Company News"]
+    videos   = client.get_top_videos_by_keywords(
         channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
-        keyword="Copilot",
+        keywords=keywords,
         published_after=since,
         top_n=3,
     )
@@ -32,7 +34,7 @@ Usage example
 
 import logging
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -61,14 +63,18 @@ class YouTubeClient:
     # Public methods
     # ------------------------------------------------------------------
 
-    def search_by_keyword(
+    def search_by_keywords(
         self,
         channel_id: str,
-        keyword: str,
+        keywords: Union[str, List[str]],
         published_after: datetime,
         max_results: int = 20,
     ) -> List[dict]:
-        """Search *channel_id* for videos matching *keyword* published after *published_after*.
+        """Search *channel_id* for videos matching any of *keywords* published after *published_after*.
+
+        *keywords* may be a single string or a list of strings.  When a list is
+        supplied the YouTube ``q`` parameter is constructed as
+        ``"term1|term2|term3"`` so the API returns results matching **any** term.
 
         Each returned dict contains:
 
@@ -86,6 +92,13 @@ class YouTubeClient:
             raise ValueError(
                 "published_after must be a timezone-aware datetime (e.g. use timezone.utc)"
             )
+
+        # Build the query string.  The YouTube Data API supports OR via "|".
+        if isinstance(keywords, list):
+            query = "|".join(keywords)
+        else:
+            query = keywords
+
         # RFC 3339 format required by the YouTube Data API.
         published_after_str = published_after.strftime("%Y-%m-%dT%H:%M:%SZ")
         try:
@@ -94,7 +107,7 @@ class YouTubeClient:
                 .list(
                     part="snippet",
                     channelId=channel_id,
-                    q=keyword,
+                    q=query,
                     order="date",
                     type="video",
                     publishedAfter=published_after_str,
@@ -104,9 +117,9 @@ class YouTubeClient:
             )
         except HttpError as exc:
             logger.error(
-                "YouTube API search error (channel=%s, keyword=%s): %s",
+                "YouTube API search error (channel=%s, keywords=%s): %s",
                 channel_id,
-                keyword,
+                keywords,
                 exc,
             )
             return []
@@ -162,26 +175,26 @@ class YouTubeClient:
             stats[vid_id] = int(raw)
         return stats
 
-    def get_top_videos_by_keyword(
+    def get_top_videos_by_keywords(
         self,
         channel_id: str,
-        keyword: str,
+        keywords: Union[str, List[str]],
         published_after: datetime,
         top_n: int = 3,
         search_pool: int = 20,
     ) -> List[dict]:
-        """Return the top *top_n* videos matching *keyword* ranked by view count.
+        """Return the top *top_n* videos matching *keywords* ranked by view count.
 
-        1. Searches *channel_id* for videos matching *keyword* published in the
-           past week (up to *search_pool* candidates).
+        1. Searches *channel_id* for videos matching any term in *keywords*
+           published in the past week (up to *search_pool* candidates).
         2. Fetches view counts for all candidates in a single batch call.
         3. Sorts by view count descending and returns the top *top_n*.
 
-        Each returned dict contains the same fields as :meth:`search_by_keyword`
+        Each returned dict contains the same fields as :meth:`search_by_keywords`
         plus a populated ``view_count`` integer.
         """
-        videos = self.search_by_keyword(
-            channel_id, keyword, published_after, max_results=search_pool
+        videos = self.search_by_keywords(
+            channel_id, keywords, published_after, max_results=search_pool
         )
         if not videos:
             return []

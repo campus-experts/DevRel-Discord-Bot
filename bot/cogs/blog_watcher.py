@@ -1,34 +1,34 @@
 """
-bot/cogs/blog_watcher.py – Discord cog that posts a weekly Copilot blog digest.
+bot/cogs/blog_watcher.py – Discord cog that posts a weekly blog digest.
 
 How it works
 ────────────
-1. A background ``discord.ext.tasks`` loop fires every hour.
-2. Inside the loop the cog checks whether the current UTC day and hour match
-   the configured ``digest_day`` / ``digest_hour`` (default: Thursday 20:00 UTC).
-3. If it is the right time and a digest hasn't already been sent today, the cog:
+1. A background ``discord.ext.tasks`` loop fires once per day.
+2. On each run the cog checks whether today (UTC) is the configured
+   ``digest_day`` (default: Thursday).
+3. If it is Thursday and a digest hasn't already been sent today, the cog:
      a. Parses the GitHub Blog RSS feed.
      b. Filters entries published in the past 7 days whose title, summary, or
-        body contains ``keyword`` (default: "Copilot").
+        body contains **any** of the configured ``keywords``.
      c. Takes up to ``digest_count`` matching posts (newest first — RSS feeds
         do not carry view-count data).
      d. Posts a single rich embed digest to the configured Discord channel.
 4. The date of the last digest is persisted to ``data/state.json`` so the bot
-   does not re-post if it restarts on the same day.
+   does not re-post if it restarts on the same Thursday.
 
 config.yaml keys used (under ``blog:``)
 ────────────────────────────────────────
   feed_url           – RSS/Atom feed URL (default: https://github.blog/feed/)
   discord_channel_id – Discord channel ID to post the digest in
   digest_day         – Day of week for the digest (default: "thursday")
-  digest_hour        – UTC hour for the digest (default: 20)
-  keyword            – Keyword filter for post search (default: "Copilot")
+  keywords           – List of topic keywords to filter posts (OR logic)
   digest_count       – Number of posts in the digest (default: 3)
   search_pool        – Feed entries to inspect before stopping (default: 20)
 """
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import List
 
 import discord
 from discord.ext import commands, tasks
@@ -44,19 +44,26 @@ _WEEKDAY_MAP = {
     "friday": 4, "saturday": 5, "sunday": 6,
 }
 
+_DEFAULT_KEYWORDS = [
+    "GitHub Copilot",
+    "GitHub Copilot CLI",
+    "Security",
+    "Developer Skills",
+    "Company News",
+]
+
 
 class BlogWatcher(commands.Cog):
-    """Background task that posts a weekly Copilot blog digest."""
+    """Background task that posts a weekly blog digest on Thursdays."""
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         cfg = bot.config["blog"]
 
         self.discord_channel_id: int = int(cfg["discord_channel_id"])
-        self.keyword: str = cfg.get("keyword", "Copilot")
+        self.keywords: List[str] = cfg.get("keywords", _DEFAULT_KEYWORDS)
         self.digest_count: int = int(cfg.get("digest_count", 3))
         self.search_pool: int = int(cfg.get("search_pool", 20))
-        self.digest_hour: int = int(cfg.get("digest_hour", 20))
         digest_day_str: str = cfg.get("digest_day", "thursday").lower()
         self.digest_weekday: int = _WEEKDAY_MAP.get(digest_day_str, 3)  # default Thursday
 
@@ -70,35 +77,33 @@ class BlogWatcher(commands.Cog):
         self.weekly_digest.cancel()
 
     # ------------------------------------------------------------------
-    # Background task – fires every hour, acts only on the digest day/hour
+    # Background task – fires once per day, acts only on the digest day
     # ------------------------------------------------------------------
 
-    @tasks.loop(hours=1)
+    @tasks.loop(hours=24)
     async def weekly_digest(self) -> None:
-        """Post the weekly Copilot blog digest if it is the right time."""
+        """Post the weekly blog digest if today is the configured digest day."""
         now = datetime.now(tz=timezone.utc)
 
         if now.weekday() != self.digest_weekday:
             return
-        if now.hour != self.digest_hour:
-            return
 
-        # Avoid double-posting if the bot restarts within the same digest hour.
+        # Avoid double-posting if the bot restarts on the same digest day.
         today_str = now.strftime("%Y-%m-%d")
         if self.state.get("blog_last_digest_date") == today_str:
             logger.debug("Blog digest already sent for %s, skipping.", today_str)
             return
 
         logger.info(
-            "Running weekly blog digest (keyword=%s, date=%s)",
-            self.keyword,
+            "Running weekly blog digest (keywords=%s, date=%s)",
+            self.keywords,
             today_str,
         )
 
         since = now - timedelta(days=7)
-        posts = self.blog_client.get_posts_since_by_keyword(
+        posts = self.blog_client.get_posts_since_by_keywords(
             since=since,
-            keyword=self.keyword,
+            keywords=self.keywords,
             max_results=self.digest_count,
             search_pool=self.search_pool,
         )
@@ -113,15 +118,16 @@ class BlogWatcher(commands.Cog):
 
         if not posts:
             logger.info(
-                "No '%s' blog posts found in the past week.",
-                self.keyword,
+                "No blog posts found in the past week for keywords: %s",
+                self.keywords,
             )
+            keywords_str = ", ".join(f"**{k}**" for k in self.keywords)
             await channel.send(
-                f"📝 No **{self.keyword}** posts were published on the "
+                f"📝 No posts matching {keywords_str} were published on the "
                 f"GitHub Blog this week."
             )
         else:
-            embed = _build_digest_embed(posts, self.keyword, since, now)
+            embed = _build_digest_embed(posts, self.keywords, since, now)
             await channel.send(embed=embed)
             logger.info(
                 "Posted blog weekly digest: %d post(s).", len(posts)
@@ -151,19 +157,21 @@ def _truncate(text: str, max_chars: int) -> str:
         return text
     return text[: max_chars - 1] + "…"
 
+
 def _build_digest_embed(
     posts: list,
-    keyword: str,
+    keywords: List[str],
     since: datetime,
     now: datetime,
 ) -> discord.Embed:
     """Construct a Discord :class:`discord.Embed` for the weekly blog digest."""
     date_range = f"{since.strftime('%b %d')} – {now.strftime('%b %d, %Y')}"
+    topics_str = ", ".join(keywords)
     embed = discord.Embed(
-        title=f"📝 GitHub {keyword} — Weekly Blog Digest",
+        title="📝 GitHub — Weekly Blog Digest",
         description=(
-            f"Recent GitHub Blog posts about **{keyword}** "
-            f"from the past week ({date_range})."
+            f"Recent GitHub Blog posts from the past week ({date_range}).\n"
+            f"**Topics:** {topics_str}"
         ),
         color=discord.Color.green(),
     )

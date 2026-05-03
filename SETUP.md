@@ -32,24 +32,25 @@ A Discord bot that watches the **GitHub YouTube channel** and the **GitHub Blog*
 │  DevRel Discord Bot                                  │  →    │  Discord Channel  │
 │                                                      │       └───────────────────┘
 │  YouTubeWatcher cog                                  │
-│    └─ every Thursday at 20:00 UTC posts a digest of  │
-│       the top Copilot videos from the past 7 days,   │
-│       ranked by view count                           │
+│    └─ checks once daily; posts on Thursday a digest  │
+│       of top videos from the past 7 days matching    │
+│       any configured topic, ranked by view count     │
 │                                                      │
 │  BlogWatcher cog                                     │
-│    └─ every Thursday at 20:00 UTC posts a digest of  │
-│       the most recent Copilot blog posts from the    │
-│       past 7 days                                    │
+│    └─ checks once daily; posts on Thursday a digest  │
+│       of the most recent blog posts from the past    │
+│       7 days matching any configured topic           │
 └─────────────────────────────────────────────────────┘
 ```
 
-- The bot wakes up once an hour and checks whether it is the configured **digest day and hour** (default: Thursday 20:00 UTC).
-- On digest day it searches for content related to **Copilot** published in the past 7 days.
+- The bot runs a **daily check** (once every 24 hours) — cost-effective with no unnecessary wakeups.
+- On Thursday it searches for content matching **any** of the configured topics published in the past 7 days.
+- Default topics: **GitHub Copilot**, **GitHub Copilot CLI**, **Security**, **Developer Skills**, **Company News**.
 - For **YouTube**: candidates are ranked by **view count** and the top 2–3 are included in a single embed.
 - For the **Blog**: RSS feeds don't carry view-count data, so the 2–3 most recent matching posts are used.
 - A digest date is saved to `data/state.json` so the bot won't re-post if it restarts on the same Thursday.
 
-> The day, hour, keyword, and digest size are all configurable in `config/config.yaml`.
+> The digest day, topic keywords, and digest size are all configurable in `config/config.yaml`.
 
 ---
 
@@ -127,8 +128,12 @@ youtube:
   channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"   # GitHub's YouTube channel – change if needed
   discord_channel_id: 123456789012345678      # ← your real channel ID here
   digest_day: "thursday"                      # day of week to post the digest
-  digest_hour: 20                             # UTC hour (20 = 8 PM UTC)
-  keyword: "Copilot"                          # keyword to filter content by
+  keywords:                                   # topics to match (OR logic)
+    - "GitHub Copilot"
+    - "GitHub Copilot CLI"
+    - "Security"
+    - "Developer Skills"
+    - "Company News"
   digest_count: 3                             # videos to include in digest
   search_pool: 20                             # candidate pool before view-count ranking
 
@@ -136,17 +141,15 @@ blog:
   feed_url: "https://github.blog/feed/"
   discord_channel_id: 123456789012345679      # ← your real channel ID here
   digest_day: "thursday"
-  digest_hour: 20
-  keyword: "Copilot"
+  keywords:
+    - "GitHub Copilot"
+    - "GitHub Copilot CLI"
+    - "Security"
+    - "Developer Skills"
+    - "Company News"
   digest_count: 3
   search_pool: 20
 ```
-
-> **digest_hour** is in UTC (24-hour clock). `20` = 8 PM UTC, which is:
-> - 4 PM Eastern (EDT) / 1 PM Pacific (PDT) in summer
-> - 3 PM Eastern (EST) / 12 PM Pacific (PST) in winter
->
-> Adjust to suit your community's timezone.
 
 > **Note:** YouTube channel IDs look like `UC7c3Kb6jYCRj4JOHHZTxKsA`.  
 > You can find a channel's ID at `https://www.youtube.com/@<handle>/about` (click the share icon → Copy channel ID), or via the [YouTube channel-ID finder](https://commentpicker.com/youtube-channel-id.php).
