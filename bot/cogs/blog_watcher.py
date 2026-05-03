@@ -140,6 +140,17 @@ class BlogWatcher(commands.Cog):
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+def _truncate(text: str, max_chars: int) -> str:
+    """Truncate *text* to *max_chars* Unicode code points.
+
+    Python ``str`` objects are sequences of Unicode code points, so slicing
+    never splits a multi-byte character.  If the text is longer than
+    *max_chars* it is trimmed and an ellipsis is appended.
+    """
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1] + "…"
+
 def _build_digest_embed(
     posts: list,
     keyword: str,
@@ -170,7 +181,7 @@ def _build_digest_embed(
         field_value = (
             f"[📖 Read on GitHub Blog]({post['url']})\n"
             f"{pub_line}"
-            f"{post['summary'][:200] or '*No summary.*'}"
+            f"{_truncate(post['summary'], 200) or '*No summary.*'}"
         )
         embed.add_field(
             name=f"{medal} {post['title']}",

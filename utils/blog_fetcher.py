@@ -18,7 +18,6 @@ Usage example
         print(post["title"], post["url"])
 """
 
-import calendar
 import logging
 import re
 from datetime import datetime, timezone
@@ -87,10 +86,9 @@ class BlogFetcher:
             # ── Date filter ────────────────────────────────────────────────
             published_parsed = getattr(entry, "published_parsed", None)
             if published_parsed is not None:
-                # feedparser gives a time.struct_time in UTC; convert to datetime.
-                pub_dt = datetime.fromtimestamp(
-                    calendar.timegm(published_parsed), tz=timezone.utc
-                )
+                # feedparser gives a time.struct_time in UTC; construct a
+                # timezone-aware datetime directly from the first 6 fields.
+                pub_dt = datetime(*published_parsed[:6], tzinfo=timezone.utc)
                 if pub_dt < since:
                     # Feeds are newest-first; once we go past the cutoff we
                     # can stop searching.

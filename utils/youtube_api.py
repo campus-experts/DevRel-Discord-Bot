@@ -82,6 +82,10 @@ class YouTubeClient:
 
         Returns an empty list when the API call fails.
         """
+        if published_after.tzinfo is None:
+            raise ValueError(
+                "published_after must be a timezone-aware datetime (e.g. use timezone.utc)"
+            )
         # RFC 3339 format required by the YouTube Data API.
         published_after_str = published_after.strftime("%Y-%m-%dT%H:%M:%SZ")
         try:

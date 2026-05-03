@@ -156,6 +156,18 @@ def _fmt_views(count: int) -> str:
     return f"{count:,} views"
 
 
+def _truncate(text: str, max_chars: int) -> str:
+    """Truncate *text* to *max_chars* Unicode code points.
+
+    Python ``str`` objects are sequences of Unicode code points, so slicing
+    never splits a multi-byte character.  If the text is longer than
+    *max_chars* it is trimmed and an ellipsis is appended.
+    """
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1] + "…"
+
+
 def _build_digest_embed(
     videos: list,
     keyword: str,
@@ -186,7 +198,7 @@ def _build_digest_embed(
         views_str = _fmt_views(video.get("view_count", 0))
         field_value = (
             f"[▶ Watch on YouTube]({video['url']}) • {views_str}\n"
-            f"{video['description'][:200] or '*No description.*'}"
+            f"{_truncate(video['description'], 200) or '*No description.*'}"
         )
         embed.add_field(
             name=f"{medal} {video['title']}",
