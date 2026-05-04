@@ -70,8 +70,14 @@ class YouTubeWatcher(commands.Cog):
         self.keywords: List[str] = cfg.get("keywords", _DEFAULT_KEYWORDS)
         self.digest_count: int = int(cfg.get("digest_count", 3))
         self.search_pool: int = int(cfg.get("search_pool", 20))
-        digest_day_str: str = cfg.get("digest_day", "thursday").lower()
-        self.digest_weekday: int = _WEEKDAY_MAP.get(digest_day_str, 3)  # default Thursday
+        digest_day_str: str = str(cfg.get("digest_day", "thursday")).strip().lower()
+        if digest_day_str not in _WEEKDAY_MAP:
+            valid_days = ", ".join(_WEEKDAY_MAP.keys())
+            raise ValueError(
+                f"Invalid youtube.digest_day value {digest_day_str!r}. "
+                f"Expected one of: {valid_days}."
+            )
+        self.digest_weekday: int = _WEEKDAY_MAP[digest_day_str]
 
         api_key = os.environ["YOUTUBE_API_KEY"]
         self.yt_client = YouTubeClient(api_key=api_key)
