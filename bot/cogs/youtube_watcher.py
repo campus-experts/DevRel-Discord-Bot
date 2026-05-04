@@ -30,6 +30,7 @@ config.yaml keys used (under ``youtube:``)
   search_pool        – Candidate pool size before view-count ranking (default: 20)
 """
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -115,7 +116,8 @@ class YouTubeWatcher(commands.Cog):
             )
 
             since = now - timedelta(days=7)
-            videos = self.yt_client.get_top_videos_by_keywords(
+            videos = await asyncio.to_thread(
+                self.yt_client.get_top_videos_by_keywords,
                 channel_id=self.yt_channel_id,
                 keywords=self.keywords,
                 published_after=since,
