@@ -62,7 +62,11 @@ def _load_config(path: Path = _CONFIG_PATH) -> dict:
         logger.critical("Configuration file not found: %s", path)
         sys.exit(1)
     with path.open() as fh:
-        config = yaml.safe_load(fh)
+        try:
+            config = yaml.safe_load(fh)
+        except yaml.YAMLError as exc:
+            logger.critical("Configuration file contains invalid YAML: %s\n%s", path, exc)
+            sys.exit(1)
     if not isinstance(config, dict):
         logger.critical("Configuration file is empty or malformed: %s", path)
         sys.exit(1)
