@@ -173,10 +173,9 @@ python main.py
 You should see log output similar to:
 
 ```
-2024-01-15 12:00:00 [INFO] __main__: Starting DevRel Discord Bot…
-2024-01-15 12:00:01 [INFO] bot.bot: Logged in as DevRelBot#1234 (ID: 987654321) — watching for new content!
 2024-01-15 12:00:01 [INFO] bot.cogs.youtube_watcher: Loaded cog: bot.cogs.youtube_watcher
 2024-01-15 12:00:01 [INFO] bot.cogs.blog_watcher: Loaded cog: bot.cogs.blog_watcher
+2024-01-15 12:00:01 [INFO] bot.bot: Logged in as DevRelBot#1234 (ID: 987654321) — watching for new content!
 ```
 
 Press **Ctrl+C** to stop.
