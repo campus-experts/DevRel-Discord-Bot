@@ -26,6 +26,7 @@ config.yaml keys used (under ``blog:``)
   search_pool        – Feed entries to inspect before stopping (default: 20)
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import List
@@ -109,7 +110,8 @@ class BlogWatcher(commands.Cog):
             )
 
             since = now - timedelta(days=7)
-            posts = self.blog_client.get_posts_since_by_keywords(
+            posts = await asyncio.to_thread(
+                self.blog_client.get_posts_since_by_keywords,
                 since=since,
                 keywords=self.keywords,
                 max_results=self.digest_count,
