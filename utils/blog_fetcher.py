@@ -92,14 +92,30 @@ class BlogFetcher:
         for entry in feed.entries[:search_pool]:
             # ── Date filter ────────────────────────────────────────────────
             published_parsed = getattr(entry, "published_parsed", None)
-            if published_parsed is not None:
+            updated_parsed = getattr(entry, "updated_parsed", None)
+            parsed_date = published_parsed or updated_parsed
+
+            if parsed_date is None:
+                # "since" queries must exclude entries whose publish/update
+                # time cannot be determined.
+                continue
+
+            try:
                 # feedparser gives a time.struct_time in UTC; construct a
                 # timezone-aware datetime directly from the first 6 fields.
-                pub_dt = datetime(*published_parsed[:6], tzinfo=timezone.utc)
-                if pub_dt < since:
-                    # Feeds are newest-first; once we go past the cutoff we
-                    # can stop searching.
-                    break
+                pub_dt = datetime(*parsed_date[:6], tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Skipping feed entry with invalid parsed date from %s: %r",
+                    self.feed_url,
+                    entry.get("link", entry.get("id", "")),
+                )
+                continue
+
+            if pub_dt < since:
+                # Feeds are newest-first; once we go past the cutoff we
+                # can stop searching.
+                break
 
             # ── Keyword filter (OR logic) ───────────────────────────────────
             title = entry.get("title", "")
