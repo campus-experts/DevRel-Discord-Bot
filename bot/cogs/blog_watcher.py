@@ -125,21 +125,20 @@ class BlogWatcher(commands.Cog):
                 return
 
             if not posts:
-                logger.info(
-                    "No blog posts found in the past week for keywords: %s",
+                logger.warning(
+                    "Blog digest query returned no posts for keywords %s. "
+                    "Because an empty result may also indicate a feed fetch error, "
+                    "skipping the 'no posts' message and not marking the digest as "
+                    "sent so it can be retried later.",
                     self.keywords,
                 )
-                keywords_str = ", ".join(f"**{k}**" for k in self.keywords)
-                await channel.send(
-                    f"📝 No posts matching {keywords_str} were published on the "
-                    f"GitHub Blog this week."
-                )
-            else:
-                embed = _build_digest_embed(posts, self.keywords, since, now)
-                await channel.send(embed=embed)
-                logger.info(
-                    "Posted blog weekly digest: %d post(s).", len(posts)
-                )
+                return
+
+            embed = _build_digest_embed(posts, self.keywords, since, now)
+            await channel.send(embed=embed)
+            logger.info(
+                "Posted blog weekly digest: %d post(s).", len(posts)
+            )
 
             self.state["blog_last_digest_date"] = today_str
             save_state(self.state)
