@@ -49,8 +49,9 @@ class DevRelBot(commands.Bot):
             try:
                 await self.load_extension(cog_path)
                 logger.info("Loaded cog: %s", cog_path)
-            except Exception as exc:  # noqa: BLE001
-                logger.error("Failed to load cog %s: %s", cog_path, exc)
+            except Exception:  # noqa: BLE001
+                logger.exception("Failed to load required cog %s during startup", cog_path)
+                raise
 
     async def on_ready(self) -> None:
         """Called when the bot has successfully connected to Discord."""
