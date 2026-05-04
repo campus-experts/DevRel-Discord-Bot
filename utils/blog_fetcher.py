@@ -113,9 +113,9 @@ class BlogFetcher:
                 continue
 
             if pub_dt < since:
-                # Feeds are newest-first; once we go past the cutoff we
-                # can stop searching.
-                break
+                # Feeds are not guaranteed to be strictly newest-first,
+                # so skip this old entry and continue scanning.
+                continue
 
             # ── Keyword filter (OR logic) ───────────────────────────────────
             title = entry.get("title", "")
