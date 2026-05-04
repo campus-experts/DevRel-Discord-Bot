@@ -96,58 +96,61 @@ class YouTubeWatcher(commands.Cog):
     @tasks.loop(hours=24)
     async def weekly_digest(self) -> None:
         """Post the weekly YouTube digest if today is the configured digest day."""
-        now = datetime.now(tz=timezone.utc)
+        try:
+            now = datetime.now(tz=timezone.utc)
 
-        if now.weekday() != self.digest_weekday:
-            return
+            if now.weekday() != self.digest_weekday:
+                return
 
-        # Avoid double-posting if the bot restarts on the same digest day.
-        today_str = now.strftime("%Y-%m-%d")
-        if self.state.get("youtube_last_digest_date") == today_str:
-            logger.debug("YouTube digest already sent for %s, skipping.", today_str)
-            return
+            # Avoid double-posting if the bot restarts on the same digest day.
+            today_str = now.strftime("%Y-%m-%d")
+            if self.state.get("youtube_last_digest_date") == today_str:
+                logger.debug("YouTube digest already sent for %s, skipping.", today_str)
+                return
 
-        logger.info(
-            "Running weekly YouTube digest (keywords=%s, date=%s)",
-            self.keywords,
-            today_str,
-        )
-
-        since = now - timedelta(days=7)
-        videos = self.yt_client.get_top_videos_by_keywords(
-            channel_id=self.yt_channel_id,
-            keywords=self.keywords,
-            published_after=since,
-            top_n=self.digest_count,
-            search_pool=self.search_pool,
-        )
-
-        channel = self.bot.get_channel(self.discord_channel_id)
-        if channel is None:
-            logger.error(
-                "Discord channel ID %s not found – check config.yaml.",
-                self.discord_channel_id,
-            )
-            return
-
-        if not videos:
-            logger.warning(
-                "YouTube digest query returned no videos for keywords %s. "
-                "Because an empty result may also indicate a YouTube API error, "
-                "skipping the 'no videos' post and not marking the digest as sent "
-                "so it can be retried later.",
+            logger.info(
+                "Running weekly YouTube digest (keywords=%s, date=%s)",
                 self.keywords,
+                today_str,
             )
-            return
 
-        embed = _build_digest_embed(videos, self.keywords, since, now)
-        await channel.send(embed=embed)
-        logger.info(
-            "Posted YouTube weekly digest: %d video(s).", len(videos)
-        )
+            since = now - timedelta(days=7)
+            videos = self.yt_client.get_top_videos_by_keywords(
+                channel_id=self.yt_channel_id,
+                keywords=self.keywords,
+                published_after=since,
+                top_n=self.digest_count,
+                search_pool=self.search_pool,
+            )
 
-        self.state["youtube_last_digest_date"] = today_str
-        save_state(self.state)
+            channel = self.bot.get_channel(self.discord_channel_id)
+            if channel is None:
+                logger.error(
+                    "Discord channel ID %s not found – check config.yaml.",
+                    self.discord_channel_id,
+                )
+                return
+
+            if not videos:
+                logger.warning(
+                    "YouTube digest query returned no videos for keywords %s. "
+                    "Because an empty result may also indicate a YouTube API error, "
+                    "skipping the 'no videos' post and not marking the digest as sent "
+                    "so it can be retried later.",
+                    self.keywords,
+                )
+                return
+
+            embed = _build_digest_embed(videos, self.keywords, since, now)
+            await channel.send(embed=embed)
+            logger.info(
+                "Posted YouTube weekly digest: %d video(s).", len(videos)
+            )
+
+            self.state["youtube_last_digest_date"] = today_str
+            save_state(self.state)
+        except Exception:
+            logger.exception("Weekly YouTube digest failed; the next scheduled run will retry.")
 
     @weekly_digest.before_loop
     async def before_weekly_digest(self) -> None:
