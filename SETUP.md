@@ -209,7 +209,7 @@ State (`data/state.json`) is stored in a named volume `bot_data` so it survives 
 
 ### Azure Container Apps *(recommended)*
 
-Azure Container Apps is a serverless container platform that scales to zero when idle – ideal for a bot that spends most of its time sleeping between polls.
+Azure Container Apps is a good fit for this bot, but it should be configured to keep at least one replica running. Discord bots need to maintain an active Gateway connection, so scaling to zero would stop the bot from receiving events and running its scheduled digest checks.
 
 ```bash
 # 1. Install the Azure CLI
