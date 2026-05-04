@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# config/config.yaml
+#
+# Non-secret configuration for the DevRel Discord Bot.
+# Secrets (DISCORD_TOKEN, YOUTUBE_API_KEY) live in .env (or host env vars).
+#
+# How to fill this in
+# ───────────────────
+# 1. discord_channel_id  – Right-click a channel in Discord (Developer Mode
+#    must be on: Settings > Advanced > Developer Mode) and choose
+#    "Copy Channel ID".
+# 2. youtube.channel_id  – The ID of the YouTube channel to watch.
+#    GitHub's channel ID is: UC7c3Kb6jYCRj4JOHHZTxKsA
+# ─────────────────────────────────────────────────────────────────────────────
+
+youtube:
+  # YouTube channel to watch for new uploads
+  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"          # GitHub's YouTube channel
+
+  # Discord channel where the weekly digest is posted
+  # Replace with your actual channel ID (integer)
+  discord_channel_id: 123456789012345678
+
+  # Day of the week to post the digest (case-insensitive)
+  digest_day: "thursday"
+
+  # Topics to filter videos by (OR logic – a video matches if any keyword appears
+  # in its title or description)
+  keywords:
+    - "GitHub Copilot"
+    - "GitHub Copilot CLI"
+    - "Security"
+    - "Developer Skills"
+    - "Company News"
+
+  # Number of top videos to include in the digest (ranked by view count)
+  digest_count: 3
+
+  # Candidate pool size: how many recent keyword-matching videos to fetch before
+  # ranking by view count and picking the top digest_count
+  search_pool: 20
+
+blog:
+  # RSS feed URL for the GitHub Blog
+  feed_url: "https://github.blog/feed/"
+
+  # Discord channel where the weekly digest is posted
+  # Replace with your actual channel ID (integer)
+  discord_channel_id: 123456789012345679
+
+  # Day of the week to post the digest (case-insensitive)
+  digest_day: "thursday"
+
+  # Topics to filter blog posts by (OR logic – a post matches if any keyword
+  # appears in its title, summary, or body)
+  keywords:
+    - "GitHub Copilot"
+    - "GitHub Copilot CLI"
+    - "Security"
+    - "Developer Skills"
+    - "Company News"
+
+  # Number of posts to include in the digest (newest-first; RSS has no view counts)
+  digest_count: 3
+
+  # Candidate pool size: how many feed entries to inspect before stopping
+  search_pool: 20

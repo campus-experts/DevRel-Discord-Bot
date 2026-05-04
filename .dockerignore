@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore
+#
+# Prevents sensitive files and unnecessary build artifacts from being copied
+# into the Docker image by the `COPY . .` instruction in the Dockerfile.
+#
+# IMPORTANT: Always keep this file in the repository root.  Without it,
+# `docker build` sends every file in this directory to the Docker daemon,
+# including any local `.env` that holds real credentials.  Those secrets
+# would then be baked into an image layer and could be read by anyone who
+# can pull or `docker inspect` the image.
+#
+# How to supply secrets at runtime instead of baking them in:
+#   docker run --rm \
+#     -e DISCORD_TOKEN=your_token_here \
+#     -e YOUTUBE_API_KEY=your_key_here \
+#     devrel-discord-bot
+#
+# Or with docker-compose, use an env_file directive that is itself listed
+# here so it is never copied into the image:
+#   env_file: [.env]    # in docker-compose.yml – file stays on the host only
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Secrets – NEVER bake into the image ──────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Git history (large and not needed at runtime) ────────────────────────────
+.git
+.gitignore
+
+# ── Python byte-code and caches ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Test / coverage artefacts ─────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Editor / OS metadata ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Runtime data (re-created by the bot on first run) ────────────────────────
+data/
+
+# ── Documentation (not needed inside the container) ──────────────────────────
+README.md
+SETUP.md
+LICENSE

@@ -1,0 +1,39 @@
+# ── Secrets ────────────────────────────────────────────────────────────────
+# NEVER commit your real .env file.  Use .env.example as the template.
+.env
+
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+.Python
+
+# ── Virtual environments ────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Bot runtime data  (state.json tracks last-seen IDs – safe to gitignore) ─
+data/
+
+# ── Editors / OS ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Test / coverage artefacts ───────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
