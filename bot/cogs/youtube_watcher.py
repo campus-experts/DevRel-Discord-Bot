@@ -115,7 +115,8 @@ class YouTubeWatcher(commands.Cog):
                 today_str,
             )
 
-            since = now - timedelta(days=7)
+            today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            since = today_midnight - timedelta(days=7)
             videos = await asyncio.to_thread(
                 self.yt_client.get_top_videos_by_keywords,
                 channel_id=self.yt_channel_id,
