@@ -34,7 +34,25 @@ def save_state(state: dict, path: Path = _DEFAULT_STATE_FILE) -> None:
     """Persist *state* to *path*, creating parent directories if needed."""
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
+
+        merged_state = {}
+        if path.exists():
+            try:
+                with path.open() as fh:
+                    current_state = json.load(fh)
+                if isinstance(current_state, dict):
+                    merged_state = current_state
+                else:
+                    logger.warning(
+                        "State file %s does not contain a JSON object; overwriting it",
+                        path,
+                    )
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Could not read state file %s before saving: %s", path, exc)
+
+        merged_state.update(state)
+
         with path.open("w") as fh:
-            json.dump(state, fh, indent=2)
+            json.dump(merged_state, fh, indent=2)
     except OSError as exc:
         logger.error("Could not write state file %s: %s", path, exc)
