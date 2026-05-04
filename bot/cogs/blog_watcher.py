@@ -3,7 +3,7 @@ bot/cogs/blog_watcher.py – Discord cog that posts a weekly blog digest.
 
 How it works
 ────────────
-1. A background ``discord.ext.tasks`` loop fires once per day.
+1. A background ``discord.ext.tasks`` loop fires once per day at midnight UTC.
 2. On each run the cog checks whether today (UTC) is the configured
    ``digest_day`` (default: Thursday).
 3. If it is Thursday and a digest hasn't already been sent today, the cog:
@@ -28,7 +28,7 @@ config.yaml keys used (under ``blog:``)
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import List
 
 import discord
@@ -88,7 +88,7 @@ class BlogWatcher(commands.Cog):
     # Background task – fires once per day, acts only on the digest day
     # ------------------------------------------------------------------
 
-    @tasks.loop(hours=24)
+    @tasks.loop(time=time(hour=0, minute=0, tzinfo=timezone.utc))
     async def weekly_digest(self) -> None:
         """Post the weekly blog digest if today is the configured digest day."""
         try:

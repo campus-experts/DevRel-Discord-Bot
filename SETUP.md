@@ -43,7 +43,7 @@ A Discord bot that watches the **GitHub YouTube channel** and the **GitHub Blog*
 └─────────────────────────────────────────────────────┘
 ```
 
-- The bot runs a **daily check** (once every 24 hours) — cost-effective with no unnecessary wakeups.
+- The bot runs a **daily check** at midnight UTC — cost-effective with no unnecessary wakeups.
 - On Thursday it searches for content matching **any** of the configured topics published in the past 7 days.
 - Default topics: **GitHub Copilot**, **GitHub Copilot CLI**, **Security**, **Developer Skills**, **Company News**.
 - For **YouTube**: candidates are ranked by **view count** and the top 2–3 are included in a single embed.
