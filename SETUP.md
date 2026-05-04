@@ -322,7 +322,7 @@ Add to `fly.toml`:
    ```
 
 > ⚠️ Heroku's ephemeral filesystem means `data/state.json` is wiped on restart.  
-> Use the [Heroku Postgres](https://elements.heroku.com/addons/heroku-postgresql) add-on or a Redis add-on to persist state, or accept the trade-off of occasional re-posts.
+> This bot currently persists state only by reading and writing `data/state.json`, so attaching Heroku Postgres or Redis alone will **not** preserve state without additional application code changes. On Heroku, either accept the trade-off of occasional re-posts after restarts or use a hosting option that provides a persistent disk mounted at `/app/data`.
 
 ---
 
