@@ -23,8 +23,8 @@ The bot will:
     in production, set variables directly in the host environment).
   - Read non-secret configuration from ``config/config.yaml``.
   - Connect to Discord and start the YouTube / blog polling tasks.
-  - Write ``data/state.json`` to track the last-announced video / post so
-    content is not re-announced after a restart.
+  - Write ``data/state.json`` to persist the last digest dates used by the
+    polling tasks across restarts.
 """
 
 import logging
