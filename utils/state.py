@@ -1,9 +1,10 @@
 """
 utils/state.py – Shared helpers for persisting bot state.
 
-The bot tracks the last-seen YouTube video ID and blog post URL across
-restarts by writing a small JSON file to ``data/state.json``.  This avoids
-re-announcing old content after a reboot.
+The bot stores small pieces of state, such as the last digest dates for
+YouTube and blog content, in ``data/state.json`` across restarts. This
+avoids re-sending content that has already been covered by a previous digest
+after a reboot.
 
 The data/ directory is listed in .gitignore so state is never committed.
 """
