@@ -131,7 +131,8 @@ class BlogWatcher(commands.Cog):
                     "Blog digest query returned no posts for keywords %s. "
                     "Because an empty result may also indicate a feed fetch error, "
                     "skipping the 'no posts' message and not marking the digest as "
-                    "sent so it can be retried later.",
+                    "sent. This week's digest will be skipped entirely; the next "
+                    "attempt will not occur until next week's scheduled digest day.",
                     self.keywords,
                 )
                 return
