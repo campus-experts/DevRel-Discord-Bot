@@ -83,58 +83,61 @@ class BlogWatcher(commands.Cog):
     @tasks.loop(hours=24)
     async def weekly_digest(self) -> None:
         """Post the weekly blog digest if today is the configured digest day."""
-        now = datetime.now(tz=timezone.utc)
+        try:
+            now = datetime.now(tz=timezone.utc)
 
-        if now.weekday() != self.digest_weekday:
-            return
+            if now.weekday() != self.digest_weekday:
+                return
 
-        # Avoid double-posting if the bot restarts on the same digest day.
-        today_str = now.strftime("%Y-%m-%d")
-        if self.state.get("blog_last_digest_date") == today_str:
-            logger.debug("Blog digest already sent for %s, skipping.", today_str)
-            return
+            # Avoid double-posting if the bot restarts on the same digest day.
+            today_str = now.strftime("%Y-%m-%d")
+            if self.state.get("blog_last_digest_date") == today_str:
+                logger.debug("Blog digest already sent for %s, skipping.", today_str)
+                return
 
-        logger.info(
-            "Running weekly blog digest (keywords=%s, date=%s)",
-            self.keywords,
-            today_str,
-        )
-
-        since = now - timedelta(days=7)
-        posts = self.blog_client.get_posts_since_by_keywords(
-            since=since,
-            keywords=self.keywords,
-            max_results=self.digest_count,
-            search_pool=self.search_pool,
-        )
-
-        channel = self.bot.get_channel(self.discord_channel_id)
-        if channel is None:
-            logger.error(
-                "Discord channel ID %s not found – check config.yaml.",
-                self.discord_channel_id,
-            )
-            return
-
-        if not posts:
             logger.info(
-                "No blog posts found in the past week for keywords: %s",
+                "Running weekly blog digest (keywords=%s, date=%s)",
                 self.keywords,
-            )
-            keywords_str = ", ".join(f"**{k}**" for k in self.keywords)
-            await channel.send(
-                f"📝 No posts matching {keywords_str} were published on the "
-                f"GitHub Blog this week."
-            )
-        else:
-            embed = _build_digest_embed(posts, self.keywords, since, now)
-            await channel.send(embed=embed)
-            logger.info(
-                "Posted blog weekly digest: %d post(s).", len(posts)
+                today_str,
             )
 
-        self.state["blog_last_digest_date"] = today_str
-        save_state(self.state)
+            since = now - timedelta(days=7)
+            posts = self.blog_client.get_posts_since_by_keywords(
+                since=since,
+                keywords=self.keywords,
+                max_results=self.digest_count,
+                search_pool=self.search_pool,
+            )
+
+            channel = self.bot.get_channel(self.discord_channel_id)
+            if channel is None:
+                logger.error(
+                    "Discord channel ID %s not found – check config.yaml.",
+                    self.discord_channel_id,
+                )
+                return
+
+            if not posts:
+                logger.info(
+                    "No blog posts found in the past week for keywords: %s",
+                    self.keywords,
+                )
+                keywords_str = ", ".join(f"**{k}**" for k in self.keywords)
+                await channel.send(
+                    f"📝 No posts matching {keywords_str} were published on the "
+                    f"GitHub Blog this week."
+                )
+            else:
+                embed = _build_digest_embed(posts, self.keywords, since, now)
+                await channel.send(embed=embed)
+                logger.info(
+                    "Posted blog weekly digest: %d post(s).", len(posts)
+                )
+
+            self.state["blog_last_digest_date"] = today_str
+            save_state(self.state)
+        except Exception:
+            logger.exception("Weekly blog digest failed; the next scheduled run will retry.")
 
     @weekly_digest.before_loop
     async def before_weekly_digest(self) -> None:
