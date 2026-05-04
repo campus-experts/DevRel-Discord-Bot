@@ -71,6 +71,11 @@ class BlogFetcher:
 
         Returns an empty list when the feed cannot be fetched or parsed.
         """
+        if since.tzinfo is None:
+            raise ValueError(
+                "since must be a timezone-aware datetime (e.g. use timezone.utc)"
+            )
+
         feed = feedparser.parse(self.feed_url)
 
         if feed.bozo:
