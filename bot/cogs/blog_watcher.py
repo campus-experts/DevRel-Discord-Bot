@@ -64,8 +64,15 @@ class BlogWatcher(commands.Cog):
         self.keywords: List[str] = cfg.get("keywords", _DEFAULT_KEYWORDS)
         self.digest_count: int = int(cfg.get("digest_count", 3))
         self.search_pool: int = int(cfg.get("search_pool", 20))
-        digest_day_str: str = cfg.get("digest_day", "thursday").lower()
-        self.digest_weekday: int = _WEEKDAY_MAP.get(digest_day_str, 3)  # default Thursday
+        digest_day_value = cfg.get("digest_day", "thursday")
+        digest_day_str: str = str(digest_day_value).strip().lower()
+        if digest_day_str not in _WEEKDAY_MAP:
+            valid_days = ", ".join(_WEEKDAY_MAP.keys())
+            raise ValueError(
+                f"Invalid blog.digest_day value: {digest_day_value!r}. "
+                f"Expected one of: {valid_days}."
+            )
+        self.digest_weekday: int = _WEEKDAY_MAP[digest_day_str]
 
         self.blog_client = BlogFetcher(feed_url=cfg["feed_url"])
         self.state: dict = load_state()
