@@ -364,7 +364,7 @@ DevRel-Discord-Bot/
 | YouTube API key exposure | Restrict the key to the YouTube Data API v3 in the Google Cloud Console. Optionally add an IP restriction. |
 | Discord token exposure | Rotate via the Discord Developer Portal if compromised. |
 | Least-privilege container | The Docker image runs as a non-root user (`botuser`). |
-| State file | `data/` is gitignored. It contains only video/post IDs – no secrets. |
+| State file | `data/` is gitignored. It currently stores only the last digest dates – no secrets. |
 
 ---
 
