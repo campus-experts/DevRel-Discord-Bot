@@ -131,21 +131,20 @@ class YouTubeWatcher(commands.Cog):
             return
 
         if not videos:
-            logger.info(
-                "No videos found on GitHub YouTube in the past week for keywords: %s",
+            logger.warning(
+                "YouTube digest query returned no videos for keywords %s. "
+                "Because an empty result may also indicate a YouTube API error, "
+                "skipping the 'no videos' post and not marking the digest as sent "
+                "so it can be retried later.",
                 self.keywords,
             )
-            keywords_str = ", ".join(f"**{k}**" for k in self.keywords)
-            await channel.send(
-                f"📺 No videos matching {keywords_str} were published on the "
-                f"GitHub YouTube channel this week."
-            )
-        else:
-            embed = _build_digest_embed(videos, self.keywords, since, now)
-            await channel.send(embed=embed)
-            logger.info(
-                "Posted YouTube weekly digest: %d video(s).", len(videos)
-            )
+            return
+
+        embed = _build_digest_embed(videos, self.keywords, since, now)
+        await channel.send(embed=embed)
+        logger.info(
+            "Posted YouTube weekly digest: %d video(s).", len(videos)
+        )
 
         self.state["youtube_last_digest_date"] = today_str
         save_state(self.state)
