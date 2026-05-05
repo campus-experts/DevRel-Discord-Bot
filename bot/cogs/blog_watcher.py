@@ -118,11 +118,25 @@ class BlogWatcher(commands.Cog):
                 search_pool=self.search_pool,
             )
 
-            channel = self.bot.get_channel(self.discord_channel_id)
-            if channel is None:
+            try:
+                channel = await self.bot.fetch_channel(self.discord_channel_id)
+            except discord.NotFound:
                 logger.error(
                     "Discord channel ID %s not found – check config.yaml.",
                     self.discord_channel_id,
+                )
+                return
+            except discord.Forbidden:
+                logger.error(
+                    "Discord channel ID %s is not accessible (missing permissions).",
+                    self.discord_channel_id,
+                )
+                return
+            except discord.HTTPException as exc:
+                logger.error(
+                    "Failed to fetch Discord channel ID %s: %s",
+                    self.discord_channel_id,
+                    exc,
                 )
                 return
 
