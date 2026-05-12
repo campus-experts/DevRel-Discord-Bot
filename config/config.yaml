@@ -19,7 +19,7 @@ youtube:
 
   # Discord channel where the weekly digest is posted
   # Replace with your actual channel ID (integer)
-  discord_channel_id: 123456789012345678
+  discord_channel_id: 767777046746890261
 
   # Day of the week to post the digest (case-insensitive)
   digest_day: "thursday"
@@ -46,7 +46,7 @@ blog:
 
   # Discord channel where the weekly digest is posted
   # Replace with your actual channel ID (integer)
-  discord_channel_id: 123456789012345679
+  discord_channel_id: 767777046746890261
 
   # Day of the week to post the digest (case-insensitive)
   digest_day: "thursday"
