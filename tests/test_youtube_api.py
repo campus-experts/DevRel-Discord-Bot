@@ -157,6 +157,19 @@ class YouTubeApiTests(unittest.TestCase):
         self.assertEqual(videos[0]["view_count"], 0)
         self.assertEqual(videos[0]["thumbnail"], "https://img.example/1.jpg")
 
+    def test_search_recent_raises_when_channel_not_found(self) -> None:
+        service = _FakeService()
+        service._channels_payload = {"items": []}
+        client = YouTubeClient.__new__(YouTubeClient)
+        client._service = service
+        client._uploads_playlist_cache = {}
+
+        with self.assertRaises(ValueError):
+            client.search_recent(
+                channel_id="UCxxxxxxxxxxxxxxxxxxxxxxxx",
+                published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            )
+
     def test_search_recent_excludes_videos_at_or_before_window(self) -> None:
         """Videos published at or before published_after must be excluded."""
         service = _FakeService(
