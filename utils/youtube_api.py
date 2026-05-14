@@ -21,7 +21,7 @@ Usage example
     # Weekly digest: top 3 videos from the past 7 days (no keyword filter)
     since  = datetime.now(tz=timezone.utc) - timedelta(days=7)
     videos = client.get_top_recent_videos(
-        channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
+        channel_id="UC7c3Kb6jYCRj4JOHHZTxKsQ",
         published_after=since,
         top_n=3,
     )

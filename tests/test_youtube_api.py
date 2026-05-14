@@ -142,7 +142,7 @@ class YouTubeApiTests(unittest.TestCase):
         client._uploads_playlist_cache = {}
 
         videos = client.search_recent(
-            channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
+            channel_id="UC7c3Kb6jYCRj4JOHHZTxKsQ",
             published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
             max_results=15,
         )

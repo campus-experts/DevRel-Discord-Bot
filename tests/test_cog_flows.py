@@ -72,7 +72,7 @@ class CogFlowTests(unittest.IsolatedAsyncioTestCase):
         bot = _FakeBot(
             config={
                 "youtube": {
-                    "channel_id": "UC7c3Kb6jYCRj4JOHHZTxKsA",
+                    "channel_id": "UC7c3Kb6jYCRj4JOHHZTxKsQ",
                     "discord_channel_id": 123456789012345678,
                     "digest_count": 1,
                     "search_pool": 10,

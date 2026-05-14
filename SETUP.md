@@ -125,7 +125,7 @@ Edit `config/config.yaml` and replace the placeholder channel IDs:
 
 ```yaml
 youtube:
-  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"   # GitHub's YouTube channel – change if needed
+  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsQ"   # GitHub's YouTube channel – change if needed
   discord_channel_id: 123456789012345678      # ← your real channel ID here
   digest_day: "thursday"                      # day of week to post the digest
   keywords:                                   # topics to match (OR logic)
@@ -151,7 +151,7 @@ blog:
   search_pool: 20
 ```
 
-> **Note:** YouTube channel IDs look like `UC7c3Kb6jYCRj4JOHHZTxKsA`.  
+> **Note:** YouTube channel IDs look like `UC7c3Kb6jYCRj4JOHHZTxKsQ`.  
 > You can find a channel's ID at `https://www.youtube.com/@<handle>/about` (click the share icon → Copy channel ID), or via the [YouTube channel-ID finder](https://commentpicker.com/youtube-channel-id.php).
 
 ---
