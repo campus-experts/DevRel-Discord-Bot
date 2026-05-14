@@ -79,7 +79,7 @@ A Discord bot that watches the **GitHub YouTube channel** and the **GitHub Blog*
 
 6. **Invite the bot to your server:**
    - In the sidebar click **OAuth2 → URL Generator**.
-   - Under *Scopes* tick **bot**.
+   - Under *Scopes* tick **bot** and **applications.commands**.
    - Under *Bot Permissions* tick **Send Messages** and **Embed Links**.
    - Copy the generated URL, open it in a browser, select your server, and click **Authorise**.
 

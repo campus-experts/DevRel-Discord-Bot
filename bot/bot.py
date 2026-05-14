@@ -53,6 +53,12 @@ class DevRelBot(commands.Bot):
                 logger.exception("Failed to load required cog %s during startup", cog_path)
                 raise
 
+        try:
+            await self.tree.sync()
+            logger.info("Slash commands synced.")
+        except discord.HTTPException:
+            logger.exception("Failed to sync slash commands during startup; continuing without command sync.")
+
     async def on_ready(self) -> None:
         """Called when the bot has successfully connected to Discord."""
         logger.info(
