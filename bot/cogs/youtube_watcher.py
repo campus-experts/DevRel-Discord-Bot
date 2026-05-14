@@ -7,9 +7,8 @@ How it works
 2. On each run the cog checks whether today (UTC) is the configured
    ``digest_day`` (default: Thursday).
 3. If it is Thursday and a digest hasn't already been sent today, the cog:
-     a. Searches the GitHub YouTube channel for videos matching any of the
-        configured ``keywords`` published in the past 7 days
-        (up to ``search_pool`` candidates).
+     a. Fetches all videos from the GitHub YouTube channel published in the
+        past 7 days (up to ``search_pool`` candidates).
      b. Fetches view counts for all candidates in a single API call.
      c. Sorts by view count and picks the top ``digest_count`` videos.
      d. Posts a single rich embed digest to the configured Discord channel.
@@ -25,7 +24,6 @@ config.yaml keys used (under ``youtube:``)
   channel_id         – YouTube channel ID to watch
   discord_channel_id – Discord channel ID to post the digest in
   digest_day         – Day of week for the digest (default: "thursday")
-  keywords           – List of topic keywords to filter videos (OR logic)
   digest_count       – Number of videos in the digest (default: 3)
   search_pool        – Candidate pool size before view-count ranking (default: 20)
 """
@@ -34,7 +32,6 @@ import asyncio
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from typing import List
 
 import discord
 from discord import app_commands
@@ -51,14 +48,6 @@ _WEEKDAY_MAP = {
     "friday": 4, "saturday": 5, "sunday": 6,
 }
 
-_DEFAULT_KEYWORDS = [
-    "GitHub Copilot",
-    "GitHub Copilot CLI",
-    "Security",
-    "Developer Skills",
-    "Company News",
-]
-
 
 class YouTubeWatcher(commands.Cog):
     """Background task that posts a weekly YouTube digest on Thursdays."""
@@ -69,7 +58,6 @@ class YouTubeWatcher(commands.Cog):
 
         self.yt_channel_id: str = cfg["channel_id"]
         self.discord_channel_id: int = int(cfg["discord_channel_id"])
-        self.keywords: List[str] = cfg.get("keywords", _DEFAULT_KEYWORDS)
         self.digest_count: int = int(cfg.get("digest_count", 3))
         self.search_pool: int = int(cfg.get("search_pool", 20))
         digest_day_str: str = str(cfg.get("digest_day", "thursday")).strip().lower()
@@ -111,17 +99,15 @@ class YouTubeWatcher(commands.Cog):
                 return
 
             logger.info(
-                "Running weekly YouTube digest (keywords=%s, date=%s)",
-                self.keywords,
+                "Running weekly YouTube digest (date=%s)",
                 today_str,
             )
 
             today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
             since = today_midnight - timedelta(days=7)
             videos = await asyncio.to_thread(
-                self.yt_client.get_top_videos_by_keywords,
+                self.yt_client.get_top_recent_videos,
                 channel_id=self.yt_channel_id,
-                keywords=self.keywords,
                 published_after=since,
                 top_n=self.digest_count,
                 search_pool=self.search_pool,
@@ -151,15 +137,14 @@ class YouTubeWatcher(commands.Cog):
 
             if not videos:
                 logger.warning(
-                    "YouTube digest query returned no videos for keywords %s. "
+                    "YouTube digest returned no videos for the past 7 days. "
                     "Because an empty result may also indicate a YouTube API error, "
                     "skipping the 'no videos' post and not marking the digest as sent "
                     "so it can be retried later.",
-                    self.keywords,
                 )
                 return
 
-            embed = _build_digest_embed(videos, self.keywords, since, now)
+            embed = _build_digest_embed(videos, since, now)
             await channel.send(embed=embed)
             logger.info(
                 "Posted YouTube weekly digest: %d video(s).", len(videos)
@@ -194,9 +179,8 @@ class YouTubeWatcher(commands.Cog):
             since = today_midnight - timedelta(days=7)
 
             videos = await asyncio.to_thread(
-                self.yt_client.get_top_videos_by_keywords,
+                self.yt_client.get_top_recent_videos,
                 channel_id=self.yt_channel_id,
-                keywords=self.keywords,
                 published_after=since,
                 top_n=self.digest_count,
                 search_pool=self.search_pool,
@@ -230,7 +214,7 @@ class YouTubeWatcher(commands.Cog):
                 )
                 return
 
-            embed = _build_digest_embed(videos, self.keywords, since, now)
+            embed = _build_digest_embed(videos, since, now)
             await channel.send(embed=embed)
             logger.info("Manual YouTube digest posted by %s: %d video(s).", interaction.user, len(videos))
             await interaction.followup.send(
@@ -272,18 +256,16 @@ def _truncate(text: str, max_chars: int) -> str:
 
 def _build_digest_embed(
     videos: list,
-    keywords: List[str],
     since: datetime,
     now: datetime,
 ) -> discord.Embed:
     """Construct a Discord :class:`discord.Embed` for the weekly video digest."""
     date_range = f"{since.strftime('%b %d')} – {now.strftime('%b %d, %Y')}"
-    topics_str = ", ".join(keywords)
     embed = discord.Embed(
         title="📺 GitHub — Weekly Video Digest",
         description=(
             f"Top GitHub YouTube videos from the past week ({date_range}), "
-            f"ranked by views.\n**Topics:** {topics_str}"
+            f"ranked by views."
         ),
         color=discord.Color.red(),
     )

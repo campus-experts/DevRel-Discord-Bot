@@ -24,19 +24,10 @@ youtube:
   # Day of the week to post the digest (case-insensitive)
   digest_day: "thursday"
 
-  # Topics to filter videos by (OR logic – a video matches if any keyword appears
-  # in its title or description)
-  keywords:
-    - "GitHub Copilot"
-    - "GitHub Copilot CLI"
-    - "Security"
-    - "Developer Skills"
-    - "Company News"
-
   # Number of top videos to include in the digest (ranked by view count)
   digest_count: 3
 
-  # Candidate pool size: how many recent keyword-matching videos to fetch before
+  # Candidate pool size: how many recent videos to fetch before
   # ranking by view count and picking the top digest_count
   search_pool: 20
 

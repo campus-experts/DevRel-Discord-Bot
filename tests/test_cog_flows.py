@@ -27,7 +27,7 @@ class _FakeYouTubeClient:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
-    def get_top_videos_by_keywords(self, **kwargs):
+    def get_top_recent_videos(self, **kwargs):
         return [
             {
                 "id": "vid-1",
@@ -74,7 +74,6 @@ class CogFlowTests(unittest.IsolatedAsyncioTestCase):
                 "youtube": {
                     "channel_id": "UC7c3Kb6jYCRj4JOHHZTxKsA",
                     "discord_channel_id": 123456789012345678,
-                    "keywords": ["GitHub Copilot"],
                     "digest_count": 1,
                     "search_pool": 10,
                     "digest_day": _today_name_utc(),
