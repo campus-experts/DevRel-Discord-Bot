@@ -10,12 +10,12 @@
 #    must be on: Settings > Advanced > Developer Mode) and choose
 #    "Copy Channel ID".
 # 2. youtube.channel_id  – The ID of the YouTube channel to watch.
-#    GitHub's channel ID is: UC7c3Kb6jYCRj4JOHHZTxKsA
+#    GitHub's channel ID is: UC7c3Kb6jYCRj4JOHHZTxKsQ
 # ─────────────────────────────────────────────────────────────────────────────
 
 youtube:
   # YouTube channel to watch for new uploads
-  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsA"          # GitHub's YouTube channel
+  channel_id: "UC7c3Kb6jYCRj4JOHHZTxKsQ"          # GitHub's YouTube channel
 
   # Discord channel where the weekly digest is posted
   # Replace with your actual channel ID (integer)

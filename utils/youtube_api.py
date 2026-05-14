@@ -21,7 +21,7 @@ Usage example
     # Weekly digest: top 3 videos from the past 7 days (no keyword filter)
     since  = datetime.now(tz=timezone.utc) - timedelta(days=7)
     videos = client.get_top_recent_videos(
-        channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
+        channel_id="UC7c3Kb6jYCRj4JOHHZTxKsQ",
         published_after=since,
         top_n=3,
     )
@@ -55,6 +55,32 @@ class YouTubeClient:
             developerKey=api_key,
             cache_discovery=False,
         )
+        # Cache uploads playlist IDs to avoid a redundant channels.list call
+        # on every digest run.
+        self._uploads_playlist_cache: dict = {}
+
+    def _get_uploads_playlist_id(self, channel_id: str) -> str:
+        """Return the uploads playlist ID for *channel_id*.
+
+        Fetches ``contentDetails.relatedPlaylists.uploads`` from the YouTube
+        Data API on first call and caches the result.  Raises
+        :class:`ValueError` if the channel is not found.
+        """
+        if channel_id not in self._uploads_playlist_cache:
+            response = (
+                self._service.channels()
+                .list(part="contentDetails", id=channel_id)
+                .execute()
+            )
+            items = response.get("items", [])
+            if not items:
+                raise ValueError(
+                    f"YouTube channel {channel_id!r} not found. "
+                    "Check the channel_id in config.yaml."
+                )
+            playlist_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+            self._uploads_playlist_cache[channel_id] = playlist_id
+        return self._uploads_playlist_cache[channel_id]
 
     # ------------------------------------------------------------------
     # Public methods
@@ -66,7 +92,18 @@ class YouTubeClient:
         published_after: datetime,
         max_results: int = 20,
     ) -> List[dict]:
-        """Search *channel_id* for all videos published after *published_after*.
+        """Return videos uploaded to *channel_id* after *published_after*.
+
+        Uses the channel's **uploads playlist** (``playlistItems.list``) rather
+        than ``search.list``.  This is more reliable because:
+
+        - ``search.list`` has unpredictable indexing delays and can silently
+          omit recently-uploaded videos and YouTube Shorts.
+        - ``playlistItems.list`` reflects the actual upload history immediately.
+        - ``playlistItems.list`` costs **1 quota unit** vs 100 for ``search.list``.
+
+        The uploads playlist ID is retrieved via ``channels.list`` and cached
+        for the lifetime of the client instance.
 
         Each returned dict contains:
 
@@ -80,21 +117,20 @@ class YouTubeClient:
 
         Raises :class:`googleapiclient.errors.HttpError` if the API call fails
         so callers can distinguish a genuine empty result from an API error.
+        Raises :class:`ValueError` if the channel cannot be found.
         """
         if published_after.tzinfo is None:
             raise ValueError(
                 "published_after must be a timezone-aware datetime (e.g. use timezone.utc)"
             )
 
-        published_after_str = published_after.strftime("%Y-%m-%dT%H:%M:%SZ")
+        uploads_playlist_id = self._get_uploads_playlist_id(channel_id)
+
         response = (
-            self._service.search()
+            self._service.playlistItems()
             .list(
-                part="snippet",
-                channelId=channel_id,
-                order="date",
-                type="video",
-                publishedAfter=published_after_str,
+                part="snippet,contentDetails",
+                playlistId=uploads_playlist_id,
                 maxResults=max_results,
             )
             .execute()
@@ -103,14 +139,37 @@ class YouTubeClient:
         videos: List[dict] = []
         for item in response.get("items", []):
             snippet = item["snippet"]
-            video_id = item["id"]["videoId"]
+            content_details = item.get("contentDetails", {})
+
+            video_id = snippet.get("resourceId", {}).get("videoId", "")
+            if not video_id:
+                continue
+
+            # contentDetails.videoPublishedAt is the authoritative publish date.
+            # snippet.publishedAt is when the item was added to the playlist
+            # (usually identical for the uploads playlist, but videoPublishedAt
+            # is preferred).
+            published_at_str = content_details.get(
+                "videoPublishedAt", snippet.get("publishedAt", "")
+            )
+
+            if published_at_str:
+                published_at = datetime.fromisoformat(
+                    published_at_str.replace("Z", "+00:00")
+                )
+                # The uploads playlist is ordered newest-first.  Once we reach
+                # a video at or before the window boundary, all remaining items
+                # will also be out of the window.
+                if published_at <= published_after:
+                    break
+
             videos.append(
                 {
                     "id": video_id,
                     "title": snippet.get("title", "Untitled"),
                     "description": snippet.get("description", "")[:500],
                     "url": f"https://www.youtube.com/watch?v={video_id}",
-                    "published": snippet.get("publishedAt", ""),
+                    "published": published_at_str,
                     "thumbnail": (
                         snippet.get("thumbnails", {})
                         .get("high", {})
