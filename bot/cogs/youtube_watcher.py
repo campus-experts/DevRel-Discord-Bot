@@ -209,7 +209,7 @@ class YouTubeWatcher(commands.Cog):
 
             if not videos:
                 await interaction.followup.send(
-                    "⚠️ No matching YouTube videos found for the past 7 days.",
+                    "⚠️ No recent YouTube videos found for the past 7 days.",
                     ephemeral=True,
                 )
                 return

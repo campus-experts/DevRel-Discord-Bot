@@ -29,7 +29,6 @@ class DigestHelperTests(unittest.TestCase):
                     "view_count": 1200,
                 }
             ],
-            keywords=["GitHub Copilot", "Security"],
             since=now,
             now=now,
         )
