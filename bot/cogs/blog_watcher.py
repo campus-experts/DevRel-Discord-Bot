@@ -180,52 +180,66 @@ class BlogWatcher(commands.Cog):
     async def blogdigest(self, interaction: discord.Interaction) -> None:
         """Slash command to trigger the blog digest immediately."""
         await interaction.response.defer(ephemeral=True)
-        now = datetime.now(tz=timezone.utc)
-        since = now - timedelta(days=7)
-
-        posts = await asyncio.to_thread(
-            self.blog_client.get_posts_since_by_keywords,
-            since=since,
-            keywords=self.keywords,
-            max_results=self.digest_count,
-            search_pool=self.search_pool,
-        )
 
         try:
-            channel = await self.bot.fetch_channel(self.discord_channel_id)
-        except discord.NotFound:
-            await interaction.followup.send(
-                f"❌ Channel ID `{self.discord_channel_id}` not found — check `config.yaml`.",
-                ephemeral=True,
-            )
-            return
-        except discord.Forbidden:
-            await interaction.followup.send(
-                f"❌ Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions.",
-                ephemeral=True,
-            )
-            return
-        except discord.HTTPException as exc:
-            await interaction.followup.send(
-                f"❌ Failed to fetch channel: {exc}",
-                ephemeral=True,
-            )
-            return
+            now = datetime.now(tz=timezone.utc)
+            since = now - timedelta(days=7)
 
-        if not posts:
+            posts = await asyncio.to_thread(
+                self.blog_client.get_posts_since_by_keywords,
+                since=since,
+                keywords=self.keywords,
+                max_results=self.digest_count,
+                search_pool=self.search_pool,
+            )
+
+            try:
+                channel = await self.bot.fetch_channel(self.discord_channel_id)
+            except discord.NotFound:
+                await interaction.followup.send(
+                    f"❌ Channel ID `{self.discord_channel_id}` not found — check `config.yaml`.",
+                    ephemeral=True,
+                )
+                return
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    f"❌ Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions.",
+                    ephemeral=True,
+                )
+                return
+            except discord.HTTPException as exc:
+                await interaction.followup.send(
+                    f"❌ Failed to fetch channel: {exc}",
+                    ephemeral=True,
+                )
+                return
+
+            if not posts:
+                await interaction.followup.send(
+                    "⚠️ No matching blog posts found for the past 7 days.",
+                    ephemeral=True,
+                )
+                return
+
+            embed = _build_digest_embed(posts, self.keywords, since, now)
+            await channel.send(embed=embed)
+            logger.info("Manual blog digest posted by %s: %d post(s).", interaction.user, len(posts))
             await interaction.followup.send(
-                "⚠️ No matching blog posts found for the past 7 days.",
+                f"✅ Blog digest posted to <#{self.discord_channel_id}> ({len(posts)} post(s)).",
                 ephemeral=True,
             )
-            return
-
-        embed = _build_digest_embed(posts, self.keywords, since, now)
-        await channel.send(embed=embed)
-        logger.info("Manual blog digest posted by %s: %d post(s).", interaction.user, len(posts))
-        await interaction.followup.send(
-            f"✅ Blog digest posted to <#{self.discord_channel_id}> ({len(posts)} post(s)).",
-            ephemeral=True,
-        )
+        except Exception:
+            logger.exception("Manual blog digest failed for %s.", interaction.user)
+            try:
+                await interaction.followup.send(
+                    "❌ Failed to run the blog digest. Please try again later and check the bot logs.",
+                    ephemeral=True,
+                )
+            except discord.HTTPException:
+                logger.exception(
+                    "Failed to send manual blog digest error response to %s.",
+                    interaction.user,
+                )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
