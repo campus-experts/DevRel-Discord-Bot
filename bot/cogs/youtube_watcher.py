@@ -187,54 +187,62 @@ class YouTubeWatcher(commands.Cog):
     async def youtubedigest(self, interaction: discord.Interaction) -> None:
         """Slash command to trigger the YouTube digest immediately."""
         await interaction.response.defer(ephemeral=True)
-        now = datetime.now(tz=timezone.utc)
-        today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        since = today_midnight - timedelta(days=7)
-
-        videos = await asyncio.to_thread(
-            self.yt_client.get_top_videos_by_keywords,
-            channel_id=self.yt_channel_id,
-            keywords=self.keywords,
-            published_after=since,
-            top_n=self.digest_count,
-            search_pool=self.search_pool,
-        )
 
         try:
-            channel = await self.bot.fetch_channel(self.discord_channel_id)
-        except discord.NotFound:
-            await interaction.followup.send(
-                f"❌ Channel ID `{self.discord_channel_id}` not found — check `config.yaml`.",
-                ephemeral=True,
-            )
-            return
-        except discord.Forbidden:
-            await interaction.followup.send(
-                f"❌ Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions.",
-                ephemeral=True,
-            )
-            return
-        except discord.HTTPException as exc:
-            await interaction.followup.send(
-                f"❌ Failed to fetch channel: {exc}",
-                ephemeral=True,
-            )
-            return
+            now = datetime.now(tz=timezone.utc)
+            today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            since = today_midnight - timedelta(days=7)
 
-        if not videos:
+            videos = await asyncio.to_thread(
+                self.yt_client.get_top_videos_by_keywords,
+                channel_id=self.yt_channel_id,
+                keywords=self.keywords,
+                published_after=since,
+                top_n=self.digest_count,
+                search_pool=self.search_pool,
+            )
+
+            try:
+                channel = await self.bot.fetch_channel(self.discord_channel_id)
+            except discord.NotFound:
+                await interaction.followup.send(
+                    f"❌ Channel ID `{self.discord_channel_id}` not found — check `config.yaml`.",
+                    ephemeral=True,
+                )
+                return
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    f"❌ Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions.",
+                    ephemeral=True,
+                )
+                return
+            except discord.HTTPException as exc:
+                await interaction.followup.send(
+                    f"❌ Failed to fetch channel: {exc}",
+                    ephemeral=True,
+                )
+                return
+
+            if not videos:
+                await interaction.followup.send(
+                    "⚠️ No matching YouTube videos found for the past 7 days.",
+                    ephemeral=True,
+                )
+                return
+
+            embed = _build_digest_embed(videos, self.keywords, since, now)
+            await channel.send(embed=embed)
+            logger.info("Manual YouTube digest posted by %s: %d video(s).", interaction.user, len(videos))
             await interaction.followup.send(
-                "⚠️ No matching YouTube videos found for the past 7 days.",
+                f"✅ YouTube digest posted to <#{self.discord_channel_id}> ({len(videos)} video(s)).",
                 ephemeral=True,
             )
-            return
-
-        embed = _build_digest_embed(videos, self.keywords, since, now)
-        await channel.send(embed=embed)
-        logger.info("Manual YouTube digest posted by %s: %d video(s).", interaction.user, len(videos))
-        await interaction.followup.send(
-            f"✅ YouTube digest posted to <#{self.discord_channel_id}> ({len(videos)} video(s)).",
-            ephemeral=True,
-        )
+        except Exception:
+            logger.exception("Manual YouTube digest failed for %s.", interaction.user)
+            await interaction.followup.send(
+                "❌ Failed to run the YouTube digest due to an unexpected error. Please check the logs and try again.",
+                ephemeral=True,
+            )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
