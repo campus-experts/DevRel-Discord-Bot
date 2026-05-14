@@ -14,7 +14,7 @@ You need:
 4. Under **Token**, generate/copy the token (`DISCORD_TOKEN`).
 5. Invite the bot to your server:
    - Open **OAuth2 → URL Generator**
-   - Scopes: `bot`
+   - Scopes: `bot`, `applications.commands`
    - Bot permissions: `Send Messages`, `Embed Links`
    - Open the generated URL and authorize the bot for your server.
 6. In Discord, enable **Developer Mode**, then copy the IDs for the channels where digests should post.
