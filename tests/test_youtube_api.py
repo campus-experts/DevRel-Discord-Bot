@@ -15,6 +15,16 @@ class _FakeRequest:
         return self._payload
 
 
+class _FakeChannelsResource:
+    def __init__(self, payload, capture):
+        self._payload = payload
+        self._capture = capture
+
+    def list(self, **kwargs):
+        self._capture.update(kwargs)
+        return _FakeRequest(self._payload)
+
+
 class _FakePlaylistItemsResource:
     def __init__(self, payload, capture):
         self._payload = payload
@@ -36,11 +46,18 @@ class _FakeVideosResource:
 
 
 class _FakeService:
-    def __init__(self, playlist_payload=None, videos_payload=None):
+    def __init__(self, playlist_payload=None, videos_payload=None, uploads_playlist_id="UUfakeplaylist"):
         self.playlist_capture = {}
         self.videos_capture = {}
+        self.channels_capture = {}
         self._playlist_payload = playlist_payload or {"items": []}
         self._videos_payload = videos_payload or {"items": []}
+        self._channels_payload = {
+            "items": [{"contentDetails": {"relatedPlaylists": {"uploads": uploads_playlist_id}}}]
+        }
+
+    def channels(self):
+        return _FakeChannelsResource(self._channels_payload, self.channels_capture)
 
     def playlistItems(self):
         return _FakePlaylistItemsResource(self._playlist_payload, self.playlist_capture)
@@ -79,11 +96,18 @@ class YouTubeApiTests(unittest.TestCase):
                 raise error
 
         class _ErrorService:
+            def channels(self):
+                return _FakeChannelsResource(
+                    {"items": [{"contentDetails": {"relatedPlaylists": {"uploads": "UUtest"}}}]},
+                    {},
+                )
+
             def playlistItems(self):
                 return _ErrorPlaylistResource()
 
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = _ErrorService()
+        client._uploads_playlist_cache = {}
 
         with self.assertRaises(HttpError):
             client.search_recent(
@@ -94,37 +118,28 @@ class YouTubeApiTests(unittest.TestCase):
     def test_search_recent_requires_timezone_aware_datetime(self) -> None:
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = _FakeService()
+        client._uploads_playlist_cache = {}
         with self.assertRaises(ValueError):
             client.search_recent(
                 channel_id="UCxxxxxxxxxxxxxxxxxxxxxxxx",
                 published_after=datetime.now(),
             )
 
-    def test_search_recent_requires_uc_channel_id(self) -> None:
-        client = YouTubeClient.__new__(YouTubeClient)
-        client._service = _FakeService()
-        with self.assertRaises(ValueError):
-            client.search_recent(
-                channel_id="not-a-uc-id",
-                published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
-            )
-
-    def test_search_recent_maps_playlist_response(self) -> None:
+    def test_search_recent_uses_api_to_resolve_uploads_playlist(self) -> None:
+        """search_recent must fetch the uploads playlist ID via channels.list,
+        not by string-manipulating the channel ID."""
         service = _FakeService(
+            uploads_playlist_id="PLxxxxxxRealPlaylist",
             playlist_payload={
                 "items": [
-                    _playlist_item(
-                        "abc123",
-                        "Copilot update",
-                        "Great release notes",
-                        "2026-05-10T00:00:00Z",
-                        "https://img.example/1.jpg",
-                    )
+                    _playlist_item("abc123", "Copilot update", "Great release notes",
+                                   "2026-05-10T00:00:00Z", "https://img.example/1.jpg")
                 ]
-            }
+            },
         )
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = service
+        client._uploads_playlist_cache = {}
 
         videos = client.search_recent(
             channel_id="UC7c3Kb6jYCRj4JOHHZTxKsA",
@@ -132,8 +147,8 @@ class YouTubeApiTests(unittest.TestCase):
             max_results=15,
         )
 
-        # Must use the uploads playlist derived from the channel ID, not search.
-        self.assertEqual(service.playlist_capture["playlistId"], "UU7c3Kb6jYCRj4JOHHZTxKsA")
+        # Must use the playlist ID returned by the API, not a derived one.
+        self.assertEqual(service.playlist_capture["playlistId"], "PLxxxxxxRealPlaylist")
         self.assertEqual(service.playlist_capture["maxResults"], 15)
         self.assertNotIn("q", service.playlist_capture)
         self.assertEqual(len(videos), 1)
@@ -145,6 +160,7 @@ class YouTubeApiTests(unittest.TestCase):
     def test_search_recent_excludes_videos_at_or_before_window(self) -> None:
         """Videos published at or before published_after must be excluded."""
         service = _FakeService(
+            uploads_playlist_id="PLtest",
             playlist_payload={
                 "items": [
                     _playlist_item("new", "New", "", "2026-05-10T00:00:00Z"),
@@ -156,6 +172,7 @@ class YouTubeApiTests(unittest.TestCase):
         )
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = service
+        client._uploads_playlist_cache = {}
 
         videos = client.search_recent(
             channel_id="UCxxxxxxxxxxxxxxxxxxxxxxxx",
@@ -183,6 +200,7 @@ class YouTubeApiTests(unittest.TestCase):
 
     def test_get_top_recent_videos_sorts_descending_by_view_count(self) -> None:
         client = YouTubeClient.__new__(YouTubeClient)
+        client._uploads_playlist_cache = {}
         with patch.object(
             client,
             "search_recent",

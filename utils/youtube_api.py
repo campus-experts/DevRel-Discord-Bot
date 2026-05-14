@@ -55,6 +55,32 @@ class YouTubeClient:
             developerKey=api_key,
             cache_discovery=False,
         )
+        # Cache uploads playlist IDs to avoid a redundant channels.list call
+        # on every digest run.
+        self._uploads_playlist_cache: dict = {}
+
+    def _get_uploads_playlist_id(self, channel_id: str) -> str:
+        """Return the uploads playlist ID for *channel_id*.
+
+        Fetches ``contentDetails.relatedPlaylists.uploads`` from the YouTube
+        Data API on first call and caches the result.  Raises
+        :class:`ValueError` if the channel is not found.
+        """
+        if channel_id not in self._uploads_playlist_cache:
+            response = (
+                self._service.channels()
+                .list(part="contentDetails", id=channel_id)
+                .execute()
+            )
+            items = response.get("items", [])
+            if not items:
+                raise ValueError(
+                    f"YouTube channel {channel_id!r} not found. "
+                    "Check the channel_id in config.yaml."
+                )
+            playlist_id = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+            self._uploads_playlist_cache[channel_id] = playlist_id
+        return self._uploads_playlist_cache[channel_id]
 
     # ------------------------------------------------------------------
     # Public methods
@@ -76,8 +102,8 @@ class YouTubeClient:
         - ``playlistItems.list`` reflects the actual upload history immediately.
         - ``playlistItems.list`` costs **1 quota unit** vs 100 for ``search.list``.
 
-        The uploads playlist ID is derived from the channel ID by replacing the
-        leading ``UC`` prefix with ``UU`` — a stable YouTube channel ID convention.
+        The uploads playlist ID is retrieved via ``channels.list`` and cached
+        for the lifetime of the client instance.
 
         Each returned dict contains:
 
@@ -91,19 +117,14 @@ class YouTubeClient:
 
         Raises :class:`googleapiclient.errors.HttpError` if the API call fails
         so callers can distinguish a genuine empty result from an API error.
-        Raises :class:`ValueError` if *channel_id* does not start with ``UC``
-        or *published_after* is not timezone-aware.
+        Raises :class:`ValueError` if the channel cannot be found.
         """
         if published_after.tzinfo is None:
             raise ValueError(
                 "published_after must be a timezone-aware datetime (e.g. use timezone.utc)"
             )
-        if not channel_id.startswith("UC"):
-            raise ValueError(
-                f"channel_id {channel_id!r} must start with 'UC' to derive the uploads playlist ID."
-            )
 
-        uploads_playlist_id = "UU" + channel_id[2:]
+        uploads_playlist_id = self._get_uploads_playlist_id(channel_id)
 
         response = (
             self._service.playlistItems()
