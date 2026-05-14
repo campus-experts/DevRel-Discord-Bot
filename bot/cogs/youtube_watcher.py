@@ -36,6 +36,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
+from googleapiclient.errors import HttpError
 
 from utils.state import load_state, save_state
 from utils.youtube_api import YouTubeClient
@@ -219,6 +220,13 @@ class YouTubeWatcher(commands.Cog):
             logger.info("Manual YouTube digest posted by %s: %d video(s).", interaction.user, len(videos))
             await interaction.followup.send(
                 f"✅ YouTube digest posted to <#{self.discord_channel_id}> ({len(videos)} video(s)).",
+                ephemeral=True,
+            )
+        except HttpError as exc:
+            logger.error("YouTube API error during manual digest for %s: %s", interaction.user, exc)
+            await interaction.followup.send(
+                f"❌ YouTube API error (status {exc.status_code}): {exc.reason}\n"
+                "This is usually a quota issue or invalid API key — check the logs and your Google Cloud console.",
                 ephemeral=True,
             )
         except Exception:

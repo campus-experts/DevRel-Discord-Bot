@@ -78,7 +78,8 @@ class YouTubeClient:
         - ``thumbnail``   – URL of the high-quality thumbnail image
         - ``view_count``  – 0 (placeholder; populate with :meth:`get_video_statistics`)
 
-        Returns an empty list when the API call fails.
+        Raises :class:`googleapiclient.errors.HttpError` if the API call fails
+        so callers can distinguish a genuine empty result from an API error.
         """
         if published_after.tzinfo is None:
             raise ValueError(
@@ -86,26 +87,18 @@ class YouTubeClient:
             )
 
         published_after_str = published_after.strftime("%Y-%m-%dT%H:%M:%SZ")
-        try:
-            response = (
-                self._service.search()
-                .list(
-                    part="snippet",
-                    channelId=channel_id,
-                    order="date",
-                    type="video",
-                    publishedAfter=published_after_str,
-                    maxResults=max_results,
-                )
-                .execute()
+        response = (
+            self._service.search()
+            .list(
+                part="snippet",
+                channelId=channel_id,
+                order="date",
+                type="video",
+                publishedAfter=published_after_str,
+                maxResults=max_results,
             )
-        except HttpError as exc:
-            logger.error(
-                "YouTube API search error (channel=%s): %s",
-                channel_id,
-                exc,
-            )
-            return []
+            .execute()
+        )
 
         videos: List[dict] = []
         for item in response.get("items", []):

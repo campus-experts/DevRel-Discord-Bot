@@ -1,6 +1,9 @@
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
+from unittest.mock import MagicMock
+
+from googleapiclient.errors import HttpError
 
 from utils.youtube_api import YouTubeClient
 
@@ -48,6 +51,31 @@ class _FakeService:
 
 
 class YouTubeApiTests(unittest.TestCase):
+    def test_search_recent_propagates_http_error(self) -> None:
+        """HttpError from the API must propagate so callers can distinguish
+        a genuine empty result from an API failure (e.g. quota exceeded)."""
+        fake_resp = MagicMock()
+        fake_resp.status = 403
+        fake_resp.reason = "quotaExceeded"
+        error = HttpError(resp=fake_resp, content=b'{"error":{"message":"quotaExceeded"}}')
+
+        class _ErrorSearchResource:
+            def list(self, **kwargs):
+                raise error
+
+        class _ErrorService:
+            def search(self):
+                return _ErrorSearchResource()
+
+        client = YouTubeClient.__new__(YouTubeClient)
+        client._service = _ErrorService()
+
+        with self.assertRaises(HttpError):
+            client.search_recent(
+                channel_id="channel-id",
+                published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
+            )
+
     def test_search_recent_requires_timezone_aware_datetime(self) -> None:
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = _FakeService()
