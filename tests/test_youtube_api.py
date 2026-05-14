@@ -48,17 +48,16 @@ class _FakeService:
 
 
 class YouTubeApiTests(unittest.TestCase):
-    def test_search_by_keywords_requires_timezone_aware_datetime(self) -> None:
+    def test_search_recent_requires_timezone_aware_datetime(self) -> None:
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = _FakeService()
         with self.assertRaises(ValueError):
-            client.search_by_keywords(
+            client.search_recent(
                 channel_id="channel-id",
-                keywords=["Copilot"],
                 published_after=datetime.now(),
             )
 
-    def test_search_by_keywords_joins_list_keywords_and_maps_response(self) -> None:
+    def test_search_recent_maps_response_without_query_param(self) -> None:
         service = _FakeService(
             search_payload={
                 "items": [
@@ -77,14 +76,13 @@ class YouTubeApiTests(unittest.TestCase):
         client = YouTubeClient.__new__(YouTubeClient)
         client._service = service
 
-        videos = client.search_by_keywords(
+        videos = client.search_recent(
             channel_id="channel-id",
-            keywords=["Copilot", "Security"],
             published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
             max_results=15,
         )
 
-        self.assertEqual(service.search_capture["q"], "Copilot|Security")
+        self.assertNotIn("q", service.search_capture)
         self.assertEqual(service.search_capture["channelId"], "channel-id")
         self.assertEqual(service.search_capture["maxResults"], 15)
         self.assertEqual(videos[0]["id"], "abc123")
@@ -108,11 +106,11 @@ class YouTubeApiTests(unittest.TestCase):
         self.assertEqual(stats, {"vid1": 12, "vid2": 3000})
         self.assertEqual(service.videos_capture["id"], "vid1,vid2")
 
-    def test_get_top_videos_by_keywords_sorts_descending_by_view_count(self) -> None:
+    def test_get_top_recent_videos_sorts_descending_by_view_count(self) -> None:
         client = YouTubeClient.__new__(YouTubeClient)
         with patch.object(
             client,
-            "search_by_keywords",
+            "search_recent",
             return_value=[
                 {"id": "a", "title": "A", "view_count": 0},
                 {"id": "b", "title": "B", "view_count": 0},
@@ -121,9 +119,8 @@ class YouTubeApiTests(unittest.TestCase):
         ), patch.object(
             client, "get_video_statistics", return_value={"a": 10, "b": 300, "c": 50}
         ):
-            top = client.get_top_videos_by_keywords(
+            top = client.get_top_recent_videos(
                 channel_id="channel-id",
-                keywords=["Copilot"],
                 published_after=datetime(2026, 5, 1, tzinfo=timezone.utc),
                 top_n=2,
                 search_pool=20,
