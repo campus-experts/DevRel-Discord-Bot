@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 COGS = [
     "bot.cogs.youtube_watcher",
     "bot.cogs.blog_watcher",
+    "bot.cogs.digest",
 ]
 
 

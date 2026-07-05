@@ -165,15 +165,8 @@ class YouTubeWatcher(commands.Cog):
     # Slash command – manual trigger
     # ------------------------------------------------------------------
 
-    @app_commands.command(
-        name="youtubedigest",
-        description="Manually run the GitHub YouTube weekly digest right now.",
-    )
-    @app_commands.default_permissions(manage_guild=True)
-    async def youtubedigest(self, interaction: discord.Interaction) -> None:
-        """Slash command to trigger the YouTube digest immediately."""
-        await interaction.response.defer(ephemeral=True)
-
+    async def trigger_manual_digest(self, user: discord.abc.User | discord.Member) -> tuple[bool, str]:
+        """Helper to trigger the YouTube digest immediately (called by DigestCommand)."""
         try:
             now = datetime.now(tz=timezone.utc)
             today_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -190,51 +183,25 @@ class YouTubeWatcher(commands.Cog):
             try:
                 channel = await self.bot.fetch_channel(self.discord_channel_id)
             except discord.NotFound:
-                await interaction.followup.send(
-                    f"❌ Channel ID `{self.discord_channel_id}` not found — check `config.yaml`.",
-                    ephemeral=True,
-                )
-                return
+                return False, f"❌ YouTube Channel ID `{self.discord_channel_id}` not found — check `config.yaml`."
             except discord.Forbidden:
-                await interaction.followup.send(
-                    f"❌ Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions.",
-                    ephemeral=True,
-                )
-                return
+                return False, f"❌ YouTube Channel ID `{self.discord_channel_id}` is not accessible — check bot permissions."
             except discord.HTTPException as exc:
-                await interaction.followup.send(
-                    f"❌ Failed to fetch channel: {exc}",
-                    ephemeral=True,
-                )
-                return
+                return False, f"❌ Failed to fetch YouTube channel: {exc}"
 
             if not videos:
-                await interaction.followup.send(
-                    "⚠️ No recent YouTube videos found for the past 7 days.",
-                    ephemeral=True,
-                )
-                return
+                return True, "⚠️ No recent YouTube videos found for the past 7 days."
 
             embed = _build_digest_embed(videos, since, now)
             await channel.send(embed=embed)
-            logger.info("Manual YouTube digest posted by %s: %d video(s).", interaction.user, len(videos))
-            await interaction.followup.send(
-                f"✅ YouTube digest posted to <#{self.discord_channel_id}> ({len(videos)} video(s)).",
-                ephemeral=True,
-            )
+            logger.info("Manual YouTube digest posted by %s: %d video(s).", user, len(videos))
+            return True, f"✅ YouTube digest posted to <#{self.discord_channel_id}> ({len(videos)} video(s))."
         except HttpError as exc:
-            logger.error("YouTube API error during manual digest for %s: %s", interaction.user, exc)
-            await interaction.followup.send(
-                f"❌ YouTube API error (status {exc.status_code}): {exc.reason}\n"
-                "This is usually a quota issue or invalid API key — check the logs and your Google Cloud console.",
-                ephemeral=True,
-            )
+            logger.error("YouTube API error during manual digest for %s: %s", user, exc)
+            return False, f"❌ YouTube API error (status {exc.status_code}): {exc.reason}\nThis is usually a quota issue or invalid API key."
         except Exception:
-            logger.exception("Manual YouTube digest failed for %s.", interaction.user)
-            await interaction.followup.send(
-                "❌ Failed to run the YouTube digest due to an unexpected error. Please check the logs and try again.",
-                ephemeral=True,
-            )
+            logger.exception("Manual YouTube digest failed for %s.", user)
+            return False, "❌ Failed to run the YouTube digest due to an unexpected error."
 
 
 # ──────────────────────────────────────────────────────────────────────────────
