@@ -44,7 +44,7 @@ YOUTUBE_API_KEY=your-youtube-api-key
 
 Edit `config/config.yaml`:
 - Set real `discord_channel_id` values for `youtube` and `blog`.
-- Optionally adjust `digest_day`, `keywords`, `digest_count`, and `search_pool`.
+- Optionally adjust `keywords`, `digest_count`, and `search_pool`.
 
 ## 4. Install dependencies and run
 
@@ -57,6 +57,5 @@ python main.py
 
 ## 5. What to expect right away
 
-- The bot should log in immediately if token/key are valid.
-- Digests only post on configured `digest_day`.
-- If you want a post today, set `digest_day` to today’s weekday in `config/config.yaml`.
+- The process logs in, posts the configured digests when run on Thursday, and exits.
+- Run it from the project root so `config/config.yaml` resolves correctly.

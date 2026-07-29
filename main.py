@@ -22,12 +22,11 @@ The bot will:
   - Load environment variables from ``.env`` (ignored if the file is absent –
     in production, set variables directly in the host environment).
   - Read non-secret configuration from ``config/config.yaml``.
-  - Connect to Discord and start the YouTube / blog polling tasks.
-  - Write ``data/state.json`` to persist the last digest dates used by the
-    polling tasks across restarts.
+  - Connect to Discord for one digest run and then disconnect.
 """
 
 import logging
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -35,7 +34,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from bot.bot import DevRelBot
+from bot.cron_runner import run_cron_job
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Logging
@@ -91,18 +90,19 @@ def _validate_env() -> None:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    # Load .env if it exists.  In containerised / cloud deployments, secrets
-    # are injected directly into the environment so the file won't be present.
+    # Load .env if it exists. In hosted deployments, secrets can be injected
+    # directly into the environment instead.
     load_dotenv()
 
     _validate_env()
     config = _load_config()
 
-    bot = DevRelBot(config=config)
-    # log_handler=None tells discord.py not to configure its own log handler
-    # so our basicConfig above is the single source of log output.
-    bot.run(os.environ["DISCORD_TOKEN"], log_handler=None)
+    asyncio.run(run_cron_job(config, os.environ["DISCORD_TOKEN"]))
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        logger.exception("Digest job failed.")
+        raise SystemExit(1)

@@ -1,10 +1,12 @@
 import unittest
 from datetime import datetime, timezone
 
-from bot.cogs.blog_watcher import _build_digest_embed as build_blog_embed
-from bot.cogs.blog_watcher import _truncate as blog_truncate
-from bot.cogs.youtube_watcher import _build_digest_embed as build_youtube_embed
-from bot.cogs.youtube_watcher import _fmt_views, _truncate as youtube_truncate
+from utils.embeds import (
+    _fmt_views,
+    _truncate,
+    build_blog_embed,
+    build_youtube_embed,
+)
 
 
 class DigestHelperTests(unittest.TestCase):
@@ -14,8 +16,7 @@ class DigestHelperTests(unittest.TestCase):
         self.assertEqual(_fmt_views(1_500_000), "1.5M views")
 
     def test_truncate_helpers_append_ellipsis_when_needed(self) -> None:
-        self.assertEqual(youtube_truncate("abcdef", 4), "abc…")
-        self.assertEqual(blog_truncate("abcdef", 4), "abc…")
+        self.assertEqual(_truncate("abcdef", 4), "abc…")
 
     def test_build_youtube_embed_contains_expected_fields(self) -> None:
         now = datetime.now(tz=timezone.utc)

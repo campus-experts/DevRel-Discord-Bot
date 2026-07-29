@@ -22,9 +22,6 @@ venv/
 env/
 ENV/
 
-# ── Bot runtime data  (state.json tracks last-seen IDs – safe to gitignore) ─
-data/
-
 # ── Editors / OS ─────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
