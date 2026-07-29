@@ -34,9 +34,9 @@ class DigestHelperTests(unittest.TestCase):
             now=now,
         )
 
-        self.assertEqual(embed.title, "📺 GitHub — Weekly Video Digest")
-        self.assertEqual(len(embed.fields), 1)
-        self.assertIn("Watch on YouTube", embed.fields[0].value)
+        self.assertEqual(embed["title"], "📺 GitHub — Weekly Video Digest")
+        self.assertEqual(len(embed["fields"]), 1)
+        self.assertIn("Watch on YouTube", embed["fields"][0]["value"])
 
     def test_build_blog_embed_contains_expected_fields(self) -> None:
         now = datetime.now(tz=timezone.utc)
@@ -54,9 +54,9 @@ class DigestHelperTests(unittest.TestCase):
             now=now,
         )
 
-        self.assertEqual(embed.title, "📝 GitHub — Weekly Blog Digest")
-        self.assertEqual(len(embed.fields), 1)
-        self.assertIn("Read on GitHub Blog", embed.fields[0].value)
+        self.assertEqual(embed["title"], "📝 GitHub — Weekly Blog Digest")
+        self.assertEqual(len(embed["fields"]), 1)
+        self.assertIn("Read on GitHub Blog", embed["fields"][0]["value"])
 
 
 if __name__ == "__main__":

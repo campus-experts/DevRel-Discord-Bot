@@ -21,7 +21,8 @@ python main.py
 ```
 
 Configure Sparked Host to run `python main.py` from the repository root every
-Thursday. The host must provide `DISCORD_TOKEN` and `YOUTUBE_API_KEY`.
+Thursday. The script fetches both sources, posts through the Mona Media bot
+token using Discord's HTTP API, and exits.
 
 See **[SETUP.md](SETUP.md)** for the full setup guide, including:
 

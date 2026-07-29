@@ -1,8 +1,8 @@
 # DevRel Discord Bot - Setup Guide
 
 This project runs as a short-lived Python process. A scheduled invocation
-connects to Discord, gathers the GitHub Blog and YouTube digests, posts them,
-and exits. It does not require a continuously running bot or Docker.
+gathers the GitHub Blog and YouTube digests, posts them through Discord's HTTP
+API, and exits. It does not require a continuously running bot or Docker.
 
 ## Prerequisites
 
@@ -84,14 +84,13 @@ YOUTUBE_API_KEY=your-youtube-api-key
 ```text
 DevRel-Discord-Bot/
 ├── bot/
-│   ├── cron_runner.py       # One-shot Discord cron execution
 │   └── __init__.py
 ├── config/config.yaml       # Non-secret configuration
 ├── utils/
 │   ├── blog_fetcher.py      # GitHub Blog RSS fetcher
 │   ├── embeds.py            # Discord embed builders
 │   └── youtube_api.py       # YouTube API wrapper
-├── main.py                  # Cron entry point
+├── main.py                  # Cron script: fetch, post, exit
 ├── requirements.txt
 └── tests/
 ```
