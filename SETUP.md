@@ -19,6 +19,23 @@ API, and exits. It does not require a continuously running bot or Docker.
 3. Enable Developer Mode in Discord and copy the destination channel IDs.
 4. Set the `discord_channel_id` values in `config/config.yaml`.
 
+### Optional Campus Expert role tag
+
+Copy the Campus Expert role ID from the server's role settings with Developer
+Mode enabled. Set `blog.mention_role_id` in `config/config.yaml` to that numeric
+ID in quotes, not the role name. Leave it `null` to post without a tag.
+
+The bot needs `View Channel`, `Send Messages`, and `Embed Links` in the destination
+channel. To tag a role that is not mentionable by everyone, it also needs
+`Mention @everyone, @here, and All Roles` there. If it already has that permission,
+no extra permission is needed. Do not grant Administrator or Manage Roles or
+make the role mentionable by everyone for this change.
+
+The blog message allows only the configured role to be notified. It does not
+notify everyone, here, other roles, or individual users. YouTube never tags the
+role, even if no blog posts are found. Repeated runs can post and tag again.
+Members' notification settings can suppress push notifications.
+
 ## Configure YouTube
 
 1. Enable YouTube Data API v3 in the
@@ -48,12 +65,15 @@ The cron schedule is responsible for running it on Thursday.
 
 ## Sparked Host cron setup
 
-Create a weekly cron job that:
+Keep the existing weekly schedule that starts the Sparked Host server:
 
 1. Runs on Thursday.
-2. Uses the repository root as its working directory.
-3. Provides `DISCORD_TOKEN` and `YOUTUBE_API_KEY`.
-4. Runs `python main.py`.
+2. Starts the server with `python main.py` as its beginning command.
+3. Uses the repository root as its working directory.
+4. Provides `DISCORD_TOKEN` and `YOUTUBE_API_KEY`.
+
+The process posts the digests and exits. The server is expected to shut down
+afterward; it does not need to remain running.
 
 Equivalent command:
 
@@ -61,7 +81,14 @@ Equivalent command:
 cd /path/to/DevRel-Discord-Bot && /path/to/python main.py
 ```
 
-If one source fails, the process reports failure after attempting both.
+To deploy the role tag, upload the updated application and configuration files
+through your existing deployment method, then set the real `blog.mention_role_id`
+on Sparked Host. Keep the existing schedule, beginning command, and secrets.
+Coordinate one live check: the blog message should show @Campus Expert, YouTube
+should have no tag, and the process should exit as before. This check notifies
+real members, so do not repeatedly start the production job for testing.
+
+Clear `blog.mention_role_id` to disable the tag.
 
 ## Configuration
 
@@ -70,6 +97,7 @@ If one source fails, the process reports failure after attempting both.
 - GitHub YouTube channel and Discord destination
 - GitHub Blog feed and Discord destination
 - Blog keywords
+- Optional blog role ID to tag
 - Number of entries and candidate search pool
 
 The process expects these environment variables:

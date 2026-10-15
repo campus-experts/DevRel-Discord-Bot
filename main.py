@@ -35,10 +35,17 @@ def load_config() -> dict:
     return config
 
 
-def post_to_discord(token: str, channel_id: int, embed: dict) -> None:
+def post_to_discord(
+    token: str, channel_id: int, embed: dict, mention_role_id: str | None = None
+) -> None:
+    payload = {"embeds": [embed], "allowed_mentions": {"parse": []}}
+    if mention_role_id is not None:
+        payload["content"] = f"<@&{mention_role_id}>"
+        payload["allowed_mentions"]["roles"] = [mention_role_id]
+
     request = Request(
         f"https://discord.com/api/v10/channels/{channel_id}/messages",
-        data=json.dumps({"embeds": [embed]}).encode(),
+        data=json.dumps(payload).encode(),
         headers={
             "Authorization": f"Bot {token}",
             "Content-Type": "application/json",
@@ -59,6 +66,21 @@ def run_digest(config: dict, token: str) -> None:
     since = now - timedelta(days=7)
 
     blog = config["blog"]
+    mention_role_id = blog.get("mention_role_id")
+    if mention_role_id is None or mention_role_id == "":
+        mention_role_id = None
+    else:
+        if isinstance(mention_role_id, bool) or not isinstance(mention_role_id, (int, str)):
+            raise ValueError("blog.mention_role_id must be a positive numeric Discord role ID")
+        mention_role_id = str(mention_role_id)
+        if (
+            not mention_role_id.isascii()
+            or not mention_role_id.isdecimal()
+            or not 0 < int(mention_role_id) < 2**64
+        ):
+            raise ValueError("blog.mention_role_id must be a positive numeric Discord role ID")
+        mention_role_id = str(int(mention_role_id))
+
     posts = BlogFetcher(blog["feed_url"]).get_posts_since_by_keywords(
         since=since,
         keywords=blog["keywords"],
@@ -70,6 +92,7 @@ def run_digest(config: dict, token: str) -> None:
             token,
             int(blog["discord_channel_id"]),
             build_blog_embed(posts, blog["keywords"], since, now),
+            mention_role_id=mention_role_id,
         )
         logger.info("Posted blog digest with %d post(s).", len(posts))
     else:
