@@ -44,6 +44,13 @@ YOUTUBE_API_KEY=your-youtube-api-key
 
 Edit `config/config.yaml`:
 - Set real `discord_channel_id` values for `youtube` and `blog`.
+- To tag @Campus Expert on the blog digest, set `blog.mention_role_id` to the
+  role's numeric ID in quotes. Copy the ID from the server's role settings with
+  Developer Mode enabled. Leave `null` to post without a tag.
+- Check that the bot has `View Channel`, `Send Messages`, `Embed Links`, and,
+  for a role not mentionable by everyone, `Mention @everyone, @here, and All Roles`
+  in the blog channel. Existing permission is sufficient; no Administrator or
+  Manage Roles permission is needed.
 - Optionally adjust `keywords`, `digest_count`, and `search_pool`.
 
 ## 4. Install dependencies and run
@@ -57,5 +64,7 @@ python main.py
 
 ## 5. What to expect right away
 
-- The process logs in, posts the configured digests when run on Thursday, and exits.
+- The process posts the configured digests whenever it is run, and exits.
+- Only the blog message tags the configured role. A local run can notify real
+  members; leave `blog.mention_role_id` as `null` when you do not want a tag.
 - Run it from the project root so `config/config.yaml` resolves correctly.

@@ -24,6 +24,12 @@ Configure Sparked Host to run `python main.py` from the repository root every
 Thursday. The script fetches both sources, posts through the Mona Media bot
 token using Discord's HTTP API, and exits.
 
+To tag **@Campus Expert** on the blog digest, set `blog.mention_role_id` in
+`config/config.yaml` to the role's numeric ID in quotes. Leave it `null` to post
+without a tag. YouTube never tags the role. The existing bot permission to
+mention all roles is sufficient if it applies in the destination channel.
+No Sparked Host schedule or startup command changes are needed.
+
 See **[SETUP.md](SETUP.md)** for the full setup guide, including:
 
 - How to create a Discord bot application and get a token

@@ -36,6 +36,10 @@ blog:
   # Replace with your actual channel ID (integer)
   discord_channel_id: 767777046746890261
 
+  # Optional: copy the Campus Expert role ID in Discord and paste it in quotes.
+  # Leave null to post without a role tag. YouTube posts never tag this role.
+  mention_role_id: null
+
   # Topics to filter blog posts by (OR logic – a post matches if any keyword
   # appears in its title, summary, or body)
   keywords:
